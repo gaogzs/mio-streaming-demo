@@ -1,0 +1,10 @@
+json_repair>=0.50.0
+langchain
+langchain-anthropic
+langchain-openai
+langchain-huggingface
+langchain-community
+pydantic
+huggingface_hub
+datasets
+accelerate
