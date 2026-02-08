@@ -1,0 +1,114 @@
+# 虚拟直播间 LLM Wrapper - 项目计划
+
+## 项目概述
+
+让 LLM 扮演虚拟主播与观众互动的 wrapper 项目。
+
+## 架构图
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    WebSocket 客户端                          │
+│  ┌──────────┐   ┌──────────┐   ┌──────────┐                 │
+│  │ 输入客户端│   │ 输入客户端│   │ 输出客户端│ ...            │
+│  └────┬─────┘   └────┬─────┘   └────▲─────┘                 │
+│       │              │              │                        │
+└───────┼──────────────┼──────────────┼────────────────────────┘
+        │              │              │
+        ▼              ▼              │
+┌─────────────────────────────────────┴────────────────────────┐
+│                   connection 层                              │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │              StreamServiceHost                       │    │
+│  │   - 管理 WebSocket 连接                              │    │
+│  │   - 区分 input/output 角色                           │    │
+│  │   - 广播回复给输出客户端                             │    │
+│  └───────────────────────┬─────────────────────────────┘    │
+└──────────────────────────┼───────────────────────────────────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────────────┐
+│                  streaming_studio 层                          │
+│  ┌────────────────┐  ┌────────────────┐  ┌───────────────┐  │
+│  │  Comment队列   │  │StreamingStudio │  │CommentDatabase│  │
+│  │   (asyncio)    │──│   异步主循环    │──│   (SQLite)    │  │
+│  └────────────────┘  └───────┬────────┘  └───────────────┘  │
+└──────────────────────────────┼───────────────────────────────┘
+                               │
+                               ▼
+┌──────────────────────────────────────────────────────────────┐
+│                  langchain_wrapper 层                         │
+│  ┌─────────────┐  ┌──────────────────┐  ┌────────────────┐  │
+│  │ LLMWrapper  │──│StreamingPipeline │──│ ModelProvider  │  │
+│  │   简单接口   │  │  LangChain管道    │  │  模型源切换    │  │
+│  └─────────────┘  └──────────────────┘  └───────┬────────┘  │
+└─────────────────────────────────────────────────┼────────────┘
+                                                  │
+                    ┌─────────────────────────────┼────────────┐
+                    │                             ▼            │
+                    │  ┌──────────┐  ┌──────────┐  ┌────────┐ │
+                    │  │  OpenAI  │  │Anthropic │  │ 本地   │  │
+                    │  │   API    │  │   API    │  │ Qwen   │  │
+                    │  └──────────┘  └──────────┘  └────────┘  │
+                    └──────────────────────────────────────────┘
+```
+
+## 模块说明
+
+| 模块 | 职责 | 计划文件 |
+|------|------|----------|
+| prompts | 提示词加载和管理 | [prompts.md](prompts.md) |
+| langchain_wrapper | LLM 调用封装 | [langchain_wrapper.md](langchain_wrapper.md) |
+| streaming_studio | 直播间核心逻辑 | [streaming_studio.md](streaming_studio.md) |
+| connection | WebSocket 服务 | [connection.md](connection.md) |
+
+## 快速开始
+
+### 1. 安装依赖
+
+```bash
+pip install -r requirements.txt
+```
+
+### 2. 配置 API Key
+
+创建 `secrets/api_keys.json`:
+
+```json
+{
+  "openai_api_key": "your-key-here",
+  "anthropic_api_key": "your-key-here"
+}
+```
+
+或设置环境变量:
+
+```bash
+export OPENAI_API_KEY="your-key-here"
+```
+
+### 3. 命令行测试
+
+```bash
+python -m streaming_studio.test_chatter_studio
+```
+
+### 4. WebSocket 服务
+
+启动服务器:
+```bash
+python run_server.py
+```
+
+连接客户端:
+```bash
+python -m connection.test_chatter_web
+```
+
+## 完成状态
+
+- [x] Phase 1: 基础层 (secrets, prompts)
+- [x] Phase 2: LLM 交互层 (langchain_wrapper)
+- [x] Phase 3: 直播间层 (streaming_studio)
+- [x] Phase 4: WebSocket 层 (connection)
+- [x] Phase 5: 计划文档

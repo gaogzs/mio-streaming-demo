@@ -8,3 +8,4 @@ pydantic
 huggingface_hub
 datasets
 accelerate
+websockets>=12.0
