@@ -28,7 +28,7 @@ class LLMWrapper:
     self,
     model_type: ModelType = ModelType.OPENAI,
     model_name: Optional[str] = None,
-    persona: str = "mio",
+    persona: str = "karin",
     max_history: int = 20
   ):
     """
@@ -37,7 +37,7 @@ class LLMWrapper:
     Args:
       model_type: 模型类型
       model_name: 模型名称，不指定则使用默认值
-      persona: 人设名称 (mio/sage/kuro)
+      persona: 人设名称 (karin/sage/kuro)
       max_history: 保留的最大历史消息数
     """
     self.model_type = model_type

@@ -33,7 +33,7 @@ class TestChatterStudio:
 
     # 选择人设
     print("请选择主播人设:")
-    print("1. mio - 元气偶像少女")
+    print("1. karin - 元气偶像少女")
     print("2. sage - 知性学者")
     print("3. kuro - 酷酷游戏主播")
     print()
@@ -41,7 +41,7 @@ class TestChatterStudio:
     while True:
       choice = input("请输入选项 (1/2/3): ").strip()
       if choice == "1":
-        persona = "mio"
+        persona = "karin"
         break
       elif choice == "2":
         persona = "sage"

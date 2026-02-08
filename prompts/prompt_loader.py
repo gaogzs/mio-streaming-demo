@@ -14,7 +14,7 @@ class PromptLoader:
   """
 
   # 支持的人设名称
-  PERSONAS = ["mio", "sage", "kuro"]
+  PERSONAS = ["karin", "sage", "kuro"]
 
   def __init__(self, prompts_dir: Optional[Path] = None):
     """
@@ -60,7 +60,7 @@ class PromptLoader:
     获取指定人设的提示词
 
     Args:
-      name: 人设名称 (mio/sage/kuro)
+      name: 人设名称 (karin/sage/kuro)
 
     Returns:
       人设提示词内容
@@ -78,7 +78,7 @@ class PromptLoader:
     获取完整的系统提示词（基础指令 + 人设）
 
     Args:
-      persona: 人设名称 (mio/sage/kuro)
+      persona: 人设名称 (karin/sage/kuro)
 
     Returns:
       完整的系统提示词
