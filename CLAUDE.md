@@ -26,14 +26,58 @@ python -m connection.test_chatter_web
 ## 架构设计
 
 ```
-langchain_wrapper/    # LLM 交互层：模型源切换(OpenAI API/本地Qwen)、LangChain管道、对外wrapper
-streaming_studio/     # 虚拟直播间：异步运行、send_comment()接收弹幕、get_response()返回回复、本地数据库存储弹幕
-connection/           # WebSocket层：StreamServiceHost服务、支持多输入者/输出者订阅
-prompts/              # 提示词文件(.txt)：基础指令、人物预设(3个)
+langchain_wrapper/    # LLM 交互层：模型源切换、LCEL管道、对外wrapper
+  model_provider.py   #   ModelType枚举 + ModelProvider（含预设工厂方法）
+  pipeline.py         #   StreamingPipeline（LCEL链）
+  wrapper.py          #   LLMWrapper 简单封装（调用 PromptLoader 获取 system prompt）
+
+memory/               # 分层记忆系统（独立顶层模块）
+  config.py           #   全局配置（ActiveConfig/TemporaryConfig/SummaryConfig 等）
+  significance.py     #   significance 评分函数（decay/boost/initial）
+  store.py            #   VectorStore（Chroma 封装）
+  archive.py          #   MemoryArchive（归档到 JSON）
+  retriever.py        #   MemoryRetriever 跨层检索 + LCEL Runnable
+  formatter.py        #   记忆格式化（相对时间显示）
+  layers/             #   四层记忆实现
+    base.py           #     MemoryEntry 数据类
+    active.py         #     ActiveLayer（FIFO，溢出回调）
+    temporary.py      #     TemporaryLayer（RAG + significance 衰减）
+    summary.py        #     SummaryLayer（定期汇总 + 清理）
+    static.py         #     StaticLayer（预设记忆，从 JSON 加载）
+
+personas/             # 角色人格管理
+  persona_loader.py   #   PersonaLoader（自动发现角色子目录）
+  {角色名}/           #   每个角色一个子目录
+    system_prompt.txt  #     角色专属系统提示词
+    static_memories/   #     预设记忆 JSON 文件
+
+prompts/              # 通用提示词
+  prompt_loader.py    #   PromptLoader（加载 base_instruction + 委托 PersonaLoader）
+  base_instruction.txt #  主播基础指令
+
+streaming_studio/     # 虚拟直播间：异步运行、弹幕队列、回复分发、SQLite存储
+connection/           # WebSocket层：StreamServiceHost、多客户端订阅
 secrets/              # API密钥等敏感信息(gitignore)
 plan/                 # 工作计划文档
 spec/                 # 项目规范(只读，不要修改)
 ```
+
+### 依赖方向
+
+```
+connection → streaming_studio → langchain_wrapper
+                              → memory
+                                  ↓
+                              personas/（读取 static_memories）
+prompts → personas/（读取 system_prompt）
+langchain_wrapper/wrapper → prompts/（获取完整 system prompt）
+```
+
+## 可用角色
+
+- **karin** — 元气偶像少女
+- **sage** — 知性学者
+- **kuro** — 酷酷游戏主播
 
 ## 编码规范
 
@@ -41,6 +85,7 @@ spec/                 # 项目规范(只读，不要修改)
 - 缩进：2空格
 - 注释/文档：中文
 - 所有路径以项目根目录为基准
+- 数据类使用 `@dataclass(frozen=True)` 保持不可变
 
 ## 当前阶段
 
