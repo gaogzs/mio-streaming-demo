@@ -139,3 +139,59 @@ class ModelProvider:
       base_url=base_url,
       **kwargs
     )
+
+  # ============================================================
+  # 预设模型工厂方法
+  # ============================================================
+
+  @classmethod
+  def remote_large(cls, **kwargs) -> BaseChatModel:
+    """
+    远程大模型（GPT-4o）
+
+    用途：主对话、复杂推理
+    """
+    return cls().get_model(
+      ModelType.OPENAI,
+      model_name="gpt-4o",
+      **kwargs,
+    )
+
+  @classmethod
+  def remote_small(cls, **kwargs) -> BaseChatModel:
+    """
+    远程小模型（GPT-4o-mini）
+
+    用途：支线任务、分类、摘要等轻量计算
+    """
+    return cls().get_model(
+      ModelType.OPENAI,
+      model_name="gpt-4o-mini",
+      **kwargs,
+    )
+
+  @classmethod
+  def local_large(cls, **kwargs) -> BaseChatModel:
+    """
+    本地大模型（Qwen2.5-7B-Instruct）
+
+    用途：离线主对话、无需 API 的场景
+    """
+    return cls().get_model(
+      ModelType.LOCAL_QWEN,
+      model_name="Qwen/Qwen2.5-7B-Instruct",
+      **kwargs,
+    )
+
+  @classmethod
+  def local_small(cls, **kwargs) -> BaseChatModel:
+    """
+    本地小模型（Qwen2.5-1.5B-Instruct）
+
+    用途：本地支线任务、资源受限环境
+    """
+    return cls().get_model(
+      ModelType.LOCAL_QWEN,
+      model_name="Qwen/Qwen2.5-1.5B-Instruct",
+      **kwargs,
+    )
