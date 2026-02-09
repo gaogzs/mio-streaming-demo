@@ -12,3 +12,4 @@ websockets>=12.0
 chromadb
 langchain-chroma
 sentence-transformers
+coolname
