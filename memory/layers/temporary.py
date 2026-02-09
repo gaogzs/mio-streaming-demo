@@ -63,6 +63,7 @@ class TemporaryLayer:
       doc_id=memory_id,
       content=content,
       metadata={
+        "id": memory_id,
         "layer": "temporary",
         "timestamp": ts.strftime("%Y-%m-%d %H:%M:%S"),
         "significance": initial_significance(),
@@ -97,12 +98,11 @@ class TemporaryLayer:
     entries = []
 
     for doc, score in results:
-      retrieved_ids.add(doc.metadata.get("id", doc.metadata.get("_id", "")))
-      # 提升被取用记忆的 significance
+      mem_id = doc.metadata.get("id", "")
+      retrieved_ids.add(mem_id)
+
       old_sig = doc.metadata.get("significance", initial_significance())
       new_sig = boost_significance(old_sig)
-      updated_meta = {**doc.metadata, "significance": new_sig}
-      # 找到文档 ID 来更新（通过 Chroma internals）
 
       ts_str = doc.metadata.get("timestamp", "")
       try:
@@ -111,13 +111,13 @@ class TemporaryLayer:
         ts = datetime.now()
 
       entries.append(MemoryEntry(
-        id=doc.metadata.get("id", ""),
+        id=mem_id,
         content=doc.page_content,
         layer="temporary",
         timestamp=ts,
         significance=new_sig,
         score=score,
-        metadata=updated_meta,
+        metadata=doc.metadata,
       ))
 
     # 衰减所有未取用的记忆 + 清理低 significance 记忆

@@ -61,6 +61,7 @@ class SummaryLayer:
       doc_id=memory_id,
       content=content,
       metadata={
+        "id": memory_id,
         "layer": "summary",
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "significance": initial_significance(),

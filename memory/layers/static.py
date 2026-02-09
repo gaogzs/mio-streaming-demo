@@ -109,6 +109,7 @@ class StaticLayer:
         doc_id=memory_id,
         content=content,
         metadata={
+          "id": memory_id,
           "layer": "static",
           "category": category,
           "source_file": path.name,

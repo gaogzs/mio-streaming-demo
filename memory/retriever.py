@@ -3,12 +3,11 @@
 支持两种检索模式：per-layer quota / weighted merge
 """
 
-from datetime import datetime
 from typing import Optional
 
 from langchain_core.runnables import RunnableLambda
 
-from .config import MemoryConfig, RetrievalConfig
+from .config import RetrievalConfig
 from .formatter import format_active_memories, format_retrieved_memories
 from .layers.base import MemoryEntry
 from .layers.active import ActiveLayer
