@@ -30,6 +30,7 @@ from .layers import (
   StaticLayer,
 )
 from .retriever import MemoryRetriever
+from .manager import MemoryManager
 from .formatter import format_active_memories, format_retrieved_memories
 
 __all__ = [
@@ -56,6 +57,8 @@ __all__ = [
   "StaticLayer",
   # 检索
   "MemoryRetriever",
+  # 管理器
+  "MemoryManager",
   # 格式化
   "format_active_memories",
   "format_retrieved_memories",

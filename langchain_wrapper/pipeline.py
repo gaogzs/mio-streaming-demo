@@ -88,9 +88,13 @@ class StreamingPipeline:
         formatted = messages
       return {**data, "history": formatted}
 
-    # 注入系统提示词
+    # 注入系统提示词（支持 extra_context 追加）
     def inject_system_prompt(data: dict) -> dict:
-      return {**data, "system_prompt": self.system_prompt}
+      prompt = self.system_prompt
+      extra = data.get("extra_context", "")
+      if extra:
+        prompt = f"{prompt}\n\n{extra}"
+      return {**data, "system_prompt": prompt}
 
     # 使用 LCEL 构建完整管道
     self._chain = (
@@ -206,7 +210,8 @@ class StreamingPipeline:
   def invoke(
     self,
     input_text: str,
-    history: Optional[list[tuple[str, str]]] = None
+    history: Optional[list[tuple[str, str]]] = None,
+    extra_context: str = "",
   ) -> str:
     """
     同步调用管道
@@ -214,19 +219,22 @@ class StreamingPipeline:
     Args:
       input_text: 用户输入文本
       history: 对话历史
+      extra_context: 额外上下文（如记忆），追加到 system prompt
 
     Returns:
       模型回复文本
     """
     return self._chain.invoke({
       "input": input_text,
-      "history": history
+      "history": history,
+      "extra_context": extra_context,
     })
 
   async def ainvoke(
     self,
     input_text: str,
-    history: Optional[list[tuple[str, str]]] = None
+    history: Optional[list[tuple[str, str]]] = None,
+    extra_context: str = "",
   ) -> str:
     """
     异步调用管道
@@ -234,13 +242,15 @@ class StreamingPipeline:
     Args:
       input_text: 用户输入文本
       history: 对话历史
+      extra_context: 额外上下文（如记忆），追加到 system prompt
 
     Returns:
       模型回复文本
     """
     return await self._chain.ainvoke({
       "input": input_text,
-      "history": history
+      "history": history,
+      "extra_context": extra_context,
     })
 
 

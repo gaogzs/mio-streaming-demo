@@ -122,11 +122,19 @@ class StreamingStudio:
       return
 
     self._running = True
+
+    # 启动记忆定时任务
+    await self.llm_wrapper.start_memory()
+
     self._main_task = asyncio.create_task(self._main_loop())
 
   async def stop(self) -> None:
     """停止直播间"""
     self._running = False
+
+    # 停止记忆定时任务
+    await self.llm_wrapper.stop_memory()
+
     if self._main_task:
       self._main_task.cancel()
       try:

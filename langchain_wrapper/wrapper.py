@@ -3,9 +3,11 @@ LLM 包装器
 提供简单的对外接口
 """
 
+import asyncio
+import logging
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from .model_provider import ModelType, ModelProvider
 from .pipeline import StreamingPipeline
@@ -16,6 +18,11 @@ if str(project_root) not in sys.path:
   sys.path.insert(0, str(project_root))
 
 from prompts import PromptLoader
+
+if TYPE_CHECKING:
+  from memory.manager import MemoryManager
+
+logger = logging.getLogger(__name__)
 
 
 class LLMWrapper:
@@ -29,7 +36,8 @@ class LLMWrapper:
     model_type: ModelType = ModelType.OPENAI,
     model_name: Optional[str] = None,
     persona: str = "karin",
-    max_history: int = 20
+    max_history: int = 20,
+    memory_manager: Optional["MemoryManager"] = None,
   ):
     """
     初始化 LLM 包装器
@@ -39,10 +47,12 @@ class LLMWrapper:
       model_name: 模型名称，不指定则使用默认值
       persona: 人设名称 (karin/sage/kuro)
       max_history: 保留的最大历史消息数
+      memory_manager: 记忆管理器（可选，传入后启用记忆功能）
     """
     self.model_type = model_type
     self.model_name = model_name
     self.persona = persona
+    self._memory = memory_manager
 
     # 加载提示词
     prompt_loader = PromptLoader()
@@ -62,6 +72,24 @@ class LLMWrapper:
     # 对话历史
     self._history: list[tuple[str, str]] = []
 
+    # 后台任务引用集合（防止被 GC 回收）
+    self._background_tasks: set[asyncio.Task] = set()
+
+  @property
+  def has_memory(self) -> bool:
+    """是否启用了记忆功能"""
+    return self._memory is not None
+
+  async def start_memory(self) -> None:
+    """启动记忆系统定时任务（需在 asyncio 上下文中调用）"""
+    if self._memory is not None:
+      await self._memory.start()
+
+  async def stop_memory(self) -> None:
+    """停止记忆系统定时任务"""
+    if self._memory is not None:
+      await self._memory.stop()
+
   @property
   def history(self) -> list[tuple[str, str]]:
     """获取对话历史"""
@@ -70,6 +98,22 @@ class LLMWrapper:
   def clear_history(self) -> None:
     """清空对话历史"""
     self._history = []
+
+  def _build_extra_context(self, user_input: str) -> str:
+    """
+    构建记忆上下文
+
+    Args:
+      user_input: 用户输入
+
+    Returns:
+      格式化的记忆文本（无记忆时返回空字符串）
+    """
+    if self._memory is None:
+      return ""
+    active_text, rag_text = self._memory.retrieve(user_input)
+    parts = [p for p in [active_text, rag_text] if p]
+    return "\n\n".join(parts)
 
   def chat(self, user_input: str, save_history: bool = True) -> str:
     """
@@ -82,10 +126,17 @@ class LLMWrapper:
     Returns:
       模型回复
     """
-    response = self.pipeline.invoke(user_input, self._history)
+    extra_context = self._build_extra_context(user_input)
+    response = self.pipeline.invoke(
+      user_input, self._history, extra_context=extra_context,
+    )
 
     if save_history:
       self._history.append((user_input, response))
+
+    # 同步记录交互（不使用 LLM 总结）
+    if self._memory is not None:
+      self._memory.record_interaction_sync(user_input, response)
 
     return response
 
@@ -100,10 +151,21 @@ class LLMWrapper:
     Returns:
       模型回复
     """
-    response = await self.pipeline.ainvoke(user_input, self._history)
+    extra_context = self._build_extra_context(user_input)
+    response = await self.pipeline.ainvoke(
+      user_input, self._history, extra_context=extra_context,
+    )
 
     if save_history:
       self._history.append((user_input, response))
+
+    # 异步记录交互（fire-and-forget，不阻塞返回）
+    if self._memory is not None:
+      task = asyncio.create_task(
+        self._memory.record_interaction(user_input, response)
+      )
+      self._background_tasks.add(task)
+      task.add_done_callback(self._background_tasks.discard)
 
     return response
 
