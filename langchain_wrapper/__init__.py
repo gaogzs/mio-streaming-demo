@@ -16,6 +16,14 @@ from .pipeline import (
   add_suffix,
 )
 from .wrapper import LLMWrapper
+from .memory import (
+  MemoryCategory,
+  MemoryStore,
+  MemoryMetadata,
+  MemoryRetriever,
+  format_memories,
+  format_memories_compact,
+)
 
 __all__ = [
   "ModelType",
@@ -30,4 +38,11 @@ __all__ = [
   "replace_text",
   "add_prefix",
   "add_suffix",
+  # 记忆模块
+  "MemoryCategory",
+  "MemoryStore",
+  "MemoryMetadata",
+  "MemoryRetriever",
+  "format_memories",
+  "format_memories_compact",
 ]

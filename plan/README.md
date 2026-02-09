@@ -112,3 +112,4 @@ python -m connection.test_chatter_web
 - [x] Phase 3: 直播间层 (streaming_studio)
 - [x] Phase 4: WebSocket 层 (connection)
 - [x] Phase 5: 计划文档
+- [x] Phase 6: RAG 记忆模块 (langchain_wrapper/memory)
