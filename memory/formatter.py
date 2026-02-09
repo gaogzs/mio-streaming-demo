@@ -1,0 +1,105 @@
+"""
+记忆格式化
+将跨层检索结果格式化为可嵌入 prompt 的文本，按层级和时间排列
+"""
+
+from datetime import datetime
+from typing import Optional
+
+from .layers.base import MemoryEntry
+
+
+def _relative_time(memory_time: datetime, now: datetime) -> str:
+  """
+  计算相对时间描述
+
+  Args:
+    memory_time: 记忆时间戳
+    now: 当前时间
+
+  Returns:
+    相对时间字符串，如 "1分34秒之前" 或 "25分前"
+  """
+  delta = now - memory_time
+  total_seconds = max(0, int(delta.total_seconds()))
+
+  if total_seconds < 60:
+    return f"{total_seconds}秒之前"
+
+  minutes = total_seconds // 60
+  seconds = total_seconds % 60
+
+  if seconds > 0 and minutes < 10:
+    # 短时间：精确到秒
+    return f"{minutes}分{seconds}秒之前"
+  else:
+    # 长时间：只到分钟
+    return f"{minutes}分前"
+
+
+def format_active_memories(entries: list[MemoryEntry]) -> str:
+  """
+  格式化 active 层记忆（无 RAG，直接时序列出）
+
+  Args:
+    entries: active 层记忆列表
+
+  Returns:
+    格式化文本
+  """
+  if not entries:
+    return ""
+
+  lines = ["【近期记忆】"]
+  for entry in entries:
+    lines.append(f"- {entry.content}")
+  return "\n".join(lines)
+
+
+def format_retrieved_memories(
+  entries: list[MemoryEntry],
+  now: Optional[datetime] = None,
+) -> str:
+  """
+  格式化跨层 RAG 检索结果
+
+  排列规则：
+  1. 层级从短到长：temporary → summary → static
+  2. 同层级内时间从近到远
+
+  各层时间前缀格式：
+  - temporary: 【1分34秒之前的记忆】
+  - summary: 【25分前的记忆】
+  - static: 使用 category 前缀（已在 StaticLayer.retrieve 中处理）
+
+  Args:
+    entries: 跨层检索结果
+    now: 当前时间（默认 datetime.now()）
+
+  Returns:
+    格式化文本，无结果时返回空字符串
+  """
+  if not entries:
+    return ""
+
+  if now is None:
+    now = datetime.now()
+
+  # 按层级排序：temporary → summary → static
+  layer_order = {"temporary": 0, "summary": 1, "static": 2}
+  sorted_entries = sorted(
+    entries,
+    key=lambda e: (layer_order.get(e.layer, 9), -(e.timestamp.timestamp())),
+  )
+
+  lines = ["【相关回忆】"]
+  for entry in sorted_entries:
+    if entry.layer == "static":
+      # static 层已带 category 前缀
+      lines.append(f"- {entry.content}")
+    else:
+      # temporary / summary 层加相对时间前缀
+      rel_time = _relative_time(entry.timestamp, now)
+      lines.append(f"- 【{rel_time}的记忆】{entry.content}")
+
+  return "\n".join(lines)
