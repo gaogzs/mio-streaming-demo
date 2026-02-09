@@ -1,13 +1,15 @@
 """
 直播间核心模块
-管理弹幕队列和主播回复生成
+管理弹幕缓冲区和主播回复生成（双轨制：定时器 + 弹幕加速）
 """
 
 import asyncio
+import random
 import sys
+from collections import deque
+from datetime import datetime
 from pathlib import Path
 from typing import Callable, Optional
-from collections import deque
 
 # 将项目根目录添加到路径
 project_root = Path(__file__).parent.parent
@@ -22,15 +24,20 @@ from .database import CommentDatabase
 class StreamingStudio:
   """
   虚拟直播间核心类
-  管理弹幕队列、调用 LLM 生成回复、分发回复给订阅者
+  管理弹幕缓冲区、调用 LLM 生成回复、分发回复给订阅者
+
+  双轨制触发机制：
+  - 定时器：每隔 min_interval~max_interval 秒随机触发一次
+  - 弹幕加速：每条新弹幕缩短等待时间 1 秒
   """
 
   def __init__(
     self,
     llm_wrapper: Optional[LLMWrapper] = None,
     database: Optional[CommentDatabase] = None,
-    batch_size: int = 3,
-    batch_wait_seconds: float = 2.0
+    recent_comments_limit: int = 20,
+    min_interval: float = 1.0,
+    max_interval: float = 10.0,
   ):
     """
     初始化直播间
@@ -38,16 +45,25 @@ class StreamingStudio:
     Args:
       llm_wrapper: LLM包装器，不指定则使用默认配置
       database: 数据库，不指定则使用默认配置
-      batch_size: 批量处理的最大弹幕数
-      batch_wait_seconds: 等待弹幕的最长时间（秒）
+      recent_comments_limit: 每次触发时收集的最近弹幕数上限
+      min_interval: 随机等待下限（秒）
+      max_interval: 随机等待上限（秒）
     """
     self.llm_wrapper = llm_wrapper or LLMWrapper()
     self.database = database or CommentDatabase()
-    self.batch_size = batch_size
-    self.batch_wait_seconds = batch_wait_seconds
+    self.recent_comments_limit = recent_comments_limit
+    self.min_interval = min_interval
+    self.max_interval = max_interval
 
-    # 弹幕队列
-    self._comment_queue: asyncio.Queue[Comment] = asyncio.Queue()
+    # 弹幕缓冲区（环形，保留足够历史）
+    self._comment_buffer: deque[Comment] = deque(maxlen=200)
+
+    # 新弹幕到达通知
+    self._comment_arrived: asyncio.Event = asyncio.Event()
+    self._pending_comment_count: int = 0
+
+    # 上次回复时间（用于区分新旧弹幕）
+    self._last_reply_time: Optional[datetime] = None
 
     # 回复队列（供外部获取）
     self._response_queue: asyncio.Queue[StreamerResponse] = asyncio.Queue()
@@ -66,15 +82,15 @@ class StreamingStudio:
 
   def send_comment(self, comment: Comment) -> None:
     """
-    发送弹幕到队列
+    发送弹幕到缓冲区
 
     Args:
       comment: 弹幕对象
     """
-    # 保存到数据库
     self.database.save_comment(comment)
-    # 放入队列
-    self._comment_queue.put_nowait(comment)
+    self._comment_buffer.append(comment)
+    self._pending_comment_count += 1
+    self._comment_arrived.set()
 
   async def get_response(self, timeout: Optional[float] = None) -> Optional[StreamerResponse]:
     """
@@ -92,7 +108,7 @@ class StreamingStudio:
       else:
         return await asyncio.wait_for(
           self._response_queue.get(),
-          timeout=timeout
+          timeout=timeout,
         )
     except asyncio.TimeoutError:
       return None
@@ -144,31 +160,50 @@ class StreamingStudio:
       self._main_task = None
 
   async def _main_loop(self) -> None:
-    """主循环：收集弹幕并生成回复"""
+    """
+    主循环：双轨定时器
+
+    - 每轮生成 remaining = random(min_interval, max_interval) 秒的等待时间
+    - 每收到一条新弹幕，remaining 减 1 秒（加速触发）
+    - remaining 耗尽或自然超时后，收集弹幕并生成回复
+    """
     while self._running:
       try:
-        # 收集一批弹幕
-        comments = await self._collect_comments()
+        remaining = random.uniform(self.min_interval, self.max_interval)
 
-        if not comments:
+        while remaining > 0:
+          try:
+            await asyncio.wait_for(
+              self._comment_arrived.wait(),
+              timeout=remaining,
+            )
+            # 有新弹幕到达，先读计数再清除事件
+            count = self._pending_comment_count
+            self._pending_comment_count = 0
+            self._comment_arrived.clear()
+            remaining = max(0.0, remaining - count)
+          except asyncio.TimeoutError:
+            # 自然超时
+            break
+
+        old_comments, new_comments = self._collect_comments()
+
+        if not old_comments and not new_comments:
           continue
 
-        # 生成回复
-        response = await self._generate_response(comments)
+        response = await self._generate_response(old_comments, new_comments)
 
         if response:
-          # 保存到数据库
           self.database.save_response(response)
-
-          # 放入回复队列
           await self._response_queue.put(response)
 
-          # 调用回调
           for callback in self._response_callbacks:
             try:
               callback(response)
             except Exception as e:
               print(f"回调执行错误: {e}")
+
+          self._last_reply_time = datetime.now()
 
       except asyncio.CancelledError:
         break
@@ -176,75 +211,110 @@ class StreamingStudio:
         print(f"主循环错误: {e}")
         await asyncio.sleep(1)
 
-  async def _collect_comments(self) -> list[Comment]:
+  def _collect_comments(self) -> tuple[list[Comment], list[Comment]]:
     """
-    收集一批弹幕
+    从缓冲区收集最近弹幕，按上次回复时间分割为旧弹幕和新弹幕
 
     Returns:
-      弹幕列表
+      (old_comments, new_comments) 元组
+      - old_comments: 上次回复之前的弹幕（背景参考）
+      - new_comments: 上次回复之后的新弹幕
     """
-    comments = []
+    recent = list(self._comment_buffer)[-self.recent_comments_limit:]
 
-    try:
-      # 等待第一条弹幕
-      first_comment = await asyncio.wait_for(
-        self._comment_queue.get(),
-        timeout=self.batch_wait_seconds
-      )
-      comments.append(first_comment)
-    except asyncio.TimeoutError:
-      return []
+    if self._last_reply_time is None:
+      return [], recent
 
-    # 尝试收集更多弹幕（非阻塞）
-    deadline = asyncio.get_event_loop().time() + self.batch_wait_seconds
+    old = [c for c in recent if c.timestamp < self._last_reply_time]
+    new = [c for c in recent if c.timestamp >= self._last_reply_time]
+    return old, new
 
-    while len(comments) < self.batch_size:
-      remaining_time = deadline - asyncio.get_event_loop().time()
-      if remaining_time <= 0:
-        break
+  @staticmethod
+  def _format_comment(comment: Comment, now: datetime) -> str:
+    """
+    格式化单条弹幕
 
-      try:
-        comment = await asyncio.wait_for(
-          self._comment_queue.get(),
-          timeout=min(0.5, remaining_time)
-        )
-        comments.append(comment)
-      except asyncio.TimeoutError:
-        break
+    格式: [14:23:05 / 35秒前] 花凛 (id: user_abc): 主播唱首歌
 
-    return comments
+    Args:
+      comment: 弹幕对象
+      now: 当前时间（用于计算相对时间）
+
+    Returns:
+      格式化后的字符串
+    """
+    time_str = comment.timestamp.strftime("%H:%M:%S")
+    delta = now - comment.timestamp
+    total_seconds = int(delta.total_seconds())
+
+    if total_seconds < 60:
+      relative = f"{total_seconds}秒前"
+    elif total_seconds < 3600:
+      minutes = total_seconds // 60
+      seconds = total_seconds % 60
+      relative = f"{minutes}分{seconds}秒前"
+    else:
+      hours = total_seconds // 3600
+      minutes = (total_seconds % 3600) // 60
+      relative = f"{hours}小时{minutes}分前"
+
+    return f"[{time_str} / {relative}] {comment.nickname} (id: {comment.user_id}): {comment.content}"
+
+  def _format_comments_for_prompt(
+    self,
+    old_comments: list[Comment],
+    new_comments: list[Comment],
+  ) -> str:
+    """
+    组合弹幕为 LLM 输入 prompt
+
+    Args:
+      old_comments: 上次回复前的弹幕
+      new_comments: 上次回复后的新弹幕
+
+    Returns:
+      格式化后的 prompt 字符串
+    """
+    now = datetime.now()
+    parts = []
+
+    if old_comments:
+      lines = [f"- {self._format_comment(c, now)}" for c in old_comments]
+      parts.append("【上次回复前的弹幕（背景参考）】\n" + "\n".join(lines))
+
+    if new_comments:
+      lines = [f"- {self._format_comment(c, now)}" for c in new_comments]
+      parts.append("【上次回复后的新弹幕】\n" + "\n".join(lines))
+    else:
+      parts.append("【上次回复后无人说话】")
+
+    return "\n\n".join(parts)
 
   async def _generate_response(
     self,
-    comments: list[Comment]
+    old_comments: list[Comment],
+    new_comments: list[Comment],
   ) -> Optional[StreamerResponse]:
     """
     根据弹幕生成回复
 
     Args:
-      comments: 弹幕列表
+      old_comments: 上次回复前的弹幕（背景参考）
+      new_comments: 上次回复后的新弹幕
 
     Returns:
       回复对象
     """
-    if not comments:
-      return None
+    prompt = self._format_comments_for_prompt(old_comments, new_comments)
 
-    # 组合弹幕内容
-    combined_input = "\n".join(c.format_for_llm() for c in comments)
-
-    # 调用 LLM
     try:
-      content = await self.llm_wrapper.achat(combined_input)
+      content = await self.llm_wrapper.achat(prompt)
     except Exception as e:
       print(f"LLM 调用错误: {e}")
       return None
 
-    # 创建回复
-    return StreamerResponse(
-      content=content,
-      reply_to=tuple(c.id for c in comments)
-    )
+    reply_ids = tuple(c.id for c in new_comments)
+    return StreamerResponse(content=content, reply_to=reply_ids)
 
   def get_stats(self) -> dict:
     """
@@ -255,9 +325,9 @@ class StreamingStudio:
     """
     return {
       "is_running": self._running,
-      "pending_comments": self._comment_queue.qsize(),
+      "pending_comments": len(self._comment_buffer),
       "pending_responses": self._response_queue.qsize(),
       "total_comments": self.database.get_comment_count(),
       "total_responses": self.database.get_response_count(),
-      "callback_count": len(self._response_callbacks)
+      "callback_count": len(self._response_callbacks),
     }
