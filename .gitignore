@@ -209,6 +209,7 @@ __marimo__/
 
 # Custom
 .claude
+data/
 
 # Memories
 archived_memory/
