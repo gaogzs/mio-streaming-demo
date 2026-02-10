@@ -103,3 +103,20 @@ class StreamerResponse:
       reply_to=reply_to,
       timestamp=timestamp
     )
+
+
+@dataclass(frozen=True)
+class ResponseChunk:
+  """
+  流式回复的单个片段
+
+  Attributes:
+    response_id: 所属回复的 ID
+    chunk: 本次新增的文本片段
+    accumulated: 截至目前的累积文本
+    done: 是否为最后一个片段
+  """
+  response_id: str
+  chunk: str
+  accumulated: str
+  done: bool = False

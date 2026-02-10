@@ -6,6 +6,7 @@ LLM 包装器
 import asyncio
 import logging
 import sys
+from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Optional, TYPE_CHECKING
 
@@ -168,6 +169,48 @@ class LLMWrapper:
       task.add_done_callback(self._background_tasks.discard)
 
     return response
+
+  async def achat_stream(
+    self, user_input: str, save_history: bool = True,
+  ) -> AsyncIterator[str]:
+    """
+    异步流式聊天，逐 token yield
+
+    流结束后自动执行后处理、保存历史、记录记忆。
+
+    Args:
+      user_input: 用户输入
+      save_history: 是否保存到历史记录
+
+    Yields:
+      模型输出的文本片段
+    """
+    extra_context = self._build_extra_context(user_input)
+    full_response = ""
+    completed = False
+
+    try:
+      async for chunk in self.pipeline.astream(
+        user_input, self._history, extra_context=extra_context,
+      ):
+        full_response += chunk
+        yield chunk
+      completed = True
+    finally:
+      if completed:
+        # 流式完成后：后处理 + 历史 + 记忆（与 achat 一致）
+        for processor in self.pipeline.postprocessors:
+          full_response = processor(full_response)
+
+        if save_history:
+          self._history.append((user_input, full_response))
+
+        if self._memory is not None:
+          task = asyncio.create_task(
+            self._memory.record_interaction(user_input, full_response)
+          )
+          self._background_tasks.add(task)
+          task.add_done_callback(self._background_tasks.discard)
 
   def chat_with_context(
     self,

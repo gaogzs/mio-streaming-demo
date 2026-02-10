@@ -3,6 +3,7 @@
 使用 LCEL (LangChain Expression Language) 构建可扩展的处理管道
 """
 
+from collections.abc import AsyncIterator
 from typing import Callable, Optional
 
 from langchain_core.language_models import BaseChatModel
@@ -96,16 +97,18 @@ class StreamingPipeline:
         prompt = f"{prompt}\n\n{extra}"
       return {**data, "system_prompt": prompt}
 
-    # 使用 LCEL 构建完整管道
-    self._chain = (
+    # 基础管道（流式使用，不含后处理器）
+    self._stream_chain = (
       RunnableLambda(inject_system_prompt)
       | RunnableLambda(format_history)
       | RunnableLambda(apply_preprocessors)
       | self._prompt_template
       | self.model
       | self._output_parser
-      | RunnableLambda(apply_postprocessors)
     )
+
+    # 完整管道（非流式使用，含后处理器）
+    self._chain = self._stream_chain | RunnableLambda(apply_postprocessors)
 
   def add_preprocessor(
     self,
@@ -252,6 +255,32 @@ class StreamingPipeline:
       "history": history,
       "extra_context": extra_context,
     })
+
+  async def astream(
+    self,
+    input_text: str,
+    history: Optional[list[tuple[str, str]]] = None,
+    extra_context: str = "",
+  ) -> AsyncIterator[str]:
+    """
+    异步流式调用管道，逐 token 返回
+
+    注意：后处理器不会应用于流式输出，需在上层对完整文本做后处理。
+
+    Args:
+      input_text: 用户输入文本
+      history: 对话历史
+      extra_context: 额外上下文（如记忆），追加到 system prompt
+
+    Yields:
+      模型输出的文本片段（通常 1~几个字符）
+    """
+    async for chunk in self._stream_chain.astream({
+      "input": input_text,
+      "history": history,
+      "extra_context": extra_context,
+    }):
+      yield chunk
 
 
 # ============================================================

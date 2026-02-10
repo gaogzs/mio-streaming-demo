@@ -18,6 +18,7 @@ if str(project_root) not in sys.path:
   sys.path.insert(0, str(project_root))
 
 from streaming_studio import StreamingStudio, Comment, StreamerResponse
+from streaming_studio.models import ResponseChunk
 
 
 class StreamServiceHost:
@@ -64,6 +65,7 @@ class StreamServiceHost:
 
     # 注册回复回调
     self.studio.on_response(self._on_response_sync)
+    self.studio.on_response_chunk(self._on_chunk_sync)
 
     # 启动服务器
     self._server = await websockets.serve(
@@ -84,6 +86,7 @@ class StreamServiceHost:
 
     # 移除回调
     self.studio.remove_callback(self._on_response_sync)
+    self.studio.remove_chunk_callback(self._on_chunk_sync)
 
     # 关闭所有客户端连接
     all_clients = self._input_clients | self._output_clients
@@ -294,6 +297,43 @@ class StreamServiceHost:
     await asyncio.gather(
       *[client.send(message) for client in self._output_clients],
       return_exceptions=True
+    )
+
+  def _on_chunk_sync(self, chunk: ResponseChunk) -> None:
+    """
+    同步的流式片段回调（在事件循环中异步执行广播）
+
+    Args:
+      chunk: 回复片段
+    """
+    try:
+      loop = asyncio.get_event_loop()
+      if loop.is_running():
+        asyncio.create_task(self._broadcast_chunk(chunk))
+    except RuntimeError:
+      pass
+
+  async def _broadcast_chunk(self, chunk: ResponseChunk) -> None:
+    """
+    向所有输出客户端广播回复片段
+
+    Args:
+      chunk: 回复片段
+    """
+    if not self._output_clients:
+      return
+
+    message = json.dumps({
+      "type": "response_chunk",
+      "response_id": chunk.response_id,
+      "chunk": chunk.chunk,
+      "accumulated": chunk.accumulated,
+      "done": chunk.done,
+    })
+
+    await asyncio.gather(
+      *[client.send(message) for client in self._output_clients],
+      return_exceptions=True,
     )
 
   def get_stats(self) -> dict:

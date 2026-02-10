@@ -6,6 +6,7 @@
 import asyncio
 import random
 import sys
+import uuid
 from collections import deque
 from datetime import datetime
 from pathlib import Path
@@ -17,7 +18,7 @@ if str(project_root) not in sys.path:
   sys.path.insert(0, str(project_root))
 
 from langchain_wrapper import LLMWrapper, ModelType
-from .models import Comment, StreamerResponse
+from .models import Comment, StreamerResponse, ResponseChunk
 from .database import CommentDatabase
 from .config import StudioConfig
 
@@ -106,6 +107,10 @@ class StreamingStudio:
     # 回复回调函数列表
     self._response_callbacks: list[Callable[[StreamerResponse], None]] = []
 
+    # 流式回复（运行时可切换，由上游调用方控制）
+    self.enable_streaming: bool = False
+    self._chunk_callbacks: list[Callable[[ResponseChunk], None]] = []
+
     # 运行状态
     self._running = False
     self._main_task: Optional[asyncio.Task] = None
@@ -167,6 +172,25 @@ class StreamingStudio:
     if callback in self._response_callbacks:
       self._response_callbacks.remove(callback)
 
+  def on_response_chunk(self, callback: Callable[[ResponseChunk], None]) -> None:
+    """
+    注册流式回复片段回调函数
+
+    Args:
+      callback: 回调函数，接收 ResponseChunk 参数
+    """
+    self._chunk_callbacks.append(callback)
+
+  def remove_chunk_callback(self, callback: Callable[[ResponseChunk], None]) -> None:
+    """
+    移除流式回复片段回调函数
+
+    Args:
+      callback: 要移除的回调函数
+    """
+    if callback in self._chunk_callbacks:
+      self._chunk_callbacks.remove(callback)
+
   async def start(self) -> None:
     """启动直播间主循环"""
     if self._running:
@@ -226,7 +250,12 @@ class StreamingStudio:
         if not old_comments and not new_comments:
           continue
 
-        response = await self._generate_response(old_comments, new_comments)
+        if self.enable_streaming:
+          response = await self._generate_response_streaming(
+            old_comments, new_comments,
+          )
+        else:
+          response = await self._generate_response(old_comments, new_comments)
 
         if response:
           self.database.save_response(response)
@@ -358,6 +387,77 @@ class StreamingStudio:
     reply_ids = tuple(c.id for c in new_comments)
     return StreamerResponse(content=content, reply_to=reply_ids)
 
+  async def _generate_response_streaming(
+    self,
+    old_comments: list[Comment],
+    new_comments: list[Comment],
+  ) -> Optional[StreamerResponse]:
+    """
+    流式生成回复，逐 token 分发 ResponseChunk
+
+    Args:
+      old_comments: 上次回复前的弹幕（背景参考）
+      new_comments: 上次回复后的新弹幕
+
+    Returns:
+      完整回复对象（流结束后组装）
+    """
+    prompt = self._format_comments_for_prompt(old_comments, new_comments)
+    self._last_prompt = prompt
+
+    reply_ids = tuple(c.id for c in new_comments)
+    response_id = str(uuid.uuid4())
+    accumulated = ""
+
+    try:
+      async for chunk in self.llm_wrapper.achat_stream(prompt):
+        accumulated += chunk
+        rc = ResponseChunk(
+          response_id=response_id,
+          chunk=chunk,
+          accumulated=accumulated,
+        )
+        for cb in list(self._chunk_callbacks):
+          try:
+            cb(rc)
+          except Exception as e:
+            print(f"chunk 回调错误: {e}")
+
+      # 发送完成标记
+      done_chunk = ResponseChunk(
+        response_id=response_id,
+        chunk="",
+        accumulated=accumulated,
+        done=True,
+      )
+      for cb in list(self._chunk_callbacks):
+        try:
+          cb(done_chunk)
+        except Exception as e:
+          print(f"chunk 回调错误: {e}")
+
+    except Exception as e:
+      print(f"LLM 流式调用错误: {e}")
+      # 通知回调流式传输已中断
+      error_chunk = ResponseChunk(
+        response_id=response_id,
+        chunk="",
+        accumulated=accumulated,
+        done=True,
+      )
+      for cb in list(self._chunk_callbacks):
+        try:
+          cb(error_chunk)
+        except Exception:
+          pass
+      return None
+
+    return StreamerResponse(
+      id=response_id,
+      content=accumulated,
+      reply_to=reply_ids,
+    )
+
   def debug_state(self) -> dict:
     """
     获取调试状态快照（供监控面板使用）
@@ -396,6 +496,8 @@ class StreamingStudio:
         self._last_reply_time.isoformat() if self._last_reply_time else None
       ),
       "last_prompt": self._last_prompt,
+      "enable_streaming": self.enable_streaming,
+      "chunk_callback_count": len(self._chunk_callbacks),
       "last_full_prompt": full_prompt,  # 完整 prompt（含系统提示词）
       "recent_comments": [
         {

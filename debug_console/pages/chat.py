@@ -1,14 +1,17 @@
 """
 模拟直播间页面
+左栏：主播发言  右栏：观众弹幕 + 输入
 支持单用户和多用户（随机身份）两种模式
 """
 
+import collections
 from datetime import datetime
 
 from coolname import generate
 from nicegui import ui, context
 
 from streaming_studio import StreamingStudio, Comment
+from streaming_studio.models import ResponseChunk
 
 
 def _random_identity() -> tuple[str, str]:
@@ -26,7 +29,7 @@ def _random_identity() -> tuple[str, str]:
 
 def create_chat_page(studio: StreamingStudio) -> None:
   """
-  构建模拟直播间 UI
+  构建模拟直播间 UI（左右分栏）
 
   Args:
     studio: 直播间实例
@@ -39,14 +42,20 @@ def create_chat_page(studio: StreamingStudio) -> None:
     "next_id": "",
     "next_nick": "",
   }
-  # 预生成第一个随机身份
   state["next_id"], state["next_nick"] = _random_identity()
 
-  # 注册回复回调的引用（stop 时需要移除）
-  callback_ref = {"fn": None}
+  # 回调引用（stop / disconnect 时移除）
+  callback_ref = {"fn": None, "chunk_fn": None}
+
+  # 流式气泡追踪 {response_id: (content_label, card)}
+  streaming_bubbles: dict[str, tuple[ui.label, ui.card]] = {}
+  # 已完成流式输出的 response_id（避免 on_response 重复，有界防泄漏）
+  streamed_ids: collections.deque[str] = collections.deque(maxlen=50)
+
+  PANEL_HEIGHT = "height: calc(100vh - 350px); min-height: 300px"
 
   with ui.column().classes("w-full h-full p-4 gap-4"):
-    # 控制栏
+    # ── 控制栏 ──
     with ui.row().classes("w-full items-center gap-4 flex-wrap"):
       ui.label("模拟直播间").classes("text-2xl font-bold")
 
@@ -64,6 +73,10 @@ def create_chat_page(studio: StreamingStudio) -> None:
         if callback_ref["fn"]:
           studio.remove_callback(callback_ref["fn"])
           callback_ref["fn"] = None
+        if callback_ref["chunk_fn"]:
+          studio.remove_chunk_callback(callback_ref["chunk_fn"])
+          callback_ref["chunk_fn"] = None
+        streaming_bubbles.clear()
         await studio.stop()
         status_label.text = "已停止"
         start_btn.enable()
@@ -73,7 +86,7 @@ def create_chat_page(studio: StreamingStudio) -> None:
       stop_btn = ui.button("停止", on_click=on_stop).props("dense")
       stop_btn.disable()
 
-    # 用户模式切换
+    # ── 用户模式切换 ──
     with ui.row().classes("w-full items-center gap-4 flex-wrap"):
       def on_mode_change(e):
         is_multi = e.value == "multi"
@@ -82,7 +95,9 @@ def create_chat_page(studio: StreamingStudio) -> None:
         identity_preview.set_visibility(is_multi)
         if is_multi:
           state["next_id"], state["next_nick"] = _random_identity()
-          preview_label.text = f"下一个身份: {state['next_nick']} ({state['next_id']})"
+          preview_label.text = (
+            f"下一个身份: {state['next_nick']} ({state['next_id']})"
+          )
 
       ui.toggle(
         {"single": "单用户", "multi": "多用户（随机）"},
@@ -93,8 +108,12 @@ def create_chat_page(studio: StreamingStudio) -> None:
       single_inputs = ui.row().classes("gap-2")
       single_inputs.set_visibility(False)
       with single_inputs:
-        uid_input = ui.input("用户ID", value="test_user").props("dense").classes("w-32")
-        nick_input = ui.input("昵称", value="测试用户").props("dense").classes("w-32")
+        uid_input = (
+          ui.input("用户ID", value="test_user").props("dense").classes("w-32")
+        )
+        nick_input = (
+          ui.input("昵称", value="测试用户").props("dense").classes("w-32")
+        )
 
         def on_uid_change(e):
           state["user_id"] = e.value
@@ -111,88 +130,132 @@ def create_chat_page(studio: StreamingStudio) -> None:
 
     ui.separator()
 
-    # 聊天消息区域（使用 scroll_area 支持滚动控制）
-    with ui.scroll_area().classes(
-      "w-full flex-1 bg-gray-50 rounded border"
-    ).style("height: calc(100vh - 350px); min-height: 300px") as scroll_area:
-      chat_container = ui.column().classes("w-full gap-2 p-2")
+    # ── 左右分栏 ──
+    with ui.row().classes("w-full flex-1 gap-4"):
 
-    def add_comment_bubble(nickname: str, content: str, timestamp: str):
-      """添加弹幕气泡（右侧）"""
-      with chat_container:
-        with ui.row().classes("w-full justify-end"):
-          with ui.column().classes("items-end gap-0"):
-            ui.label(f"{nickname}  {timestamp}").classes("text-xs text-gray-400")
-            ui.chat_message(
-              content,
-              name=nickname,
-              sent=True,
+      # ── 左栏：主播发言 ──
+      with ui.column().classes("flex-1 gap-2"):
+        ui.label("主播发言").classes("text-sm font-bold text-blue-700")
+        with ui.scroll_area().classes(
+          "w-full bg-blue-50 rounded border"
+        ).style(PANEL_HEIGHT) as response_scroll:
+          response_container = ui.column().classes("w-full gap-2 p-2")
+
+      # ── 右栏：观众弹幕 + 输入 ──
+      with ui.column().classes("flex-1 gap-2"):
+        ui.label("观众弹幕").classes("text-sm font-bold text-green-700")
+        with ui.scroll_area().classes(
+          "w-full bg-gray-50 rounded border"
+        ).style(PANEL_HEIGHT) as comment_scroll:
+          comment_container = ui.column().classes("w-full gap-2 p-2")
+
+        # 输入栏（在右栏底部）
+        with ui.row().classes("w-full gap-2"):
+          msg_input = ui.input(placeholder="输入弹幕...").props(
+            "dense outlined"
+          ).classes("flex-1")
+
+          def send():
+            content = msg_input.value.strip()
+            if not content or not studio.is_running:
+              return
+
+            if state["multi_user"]:
+              user_id = state["next_id"]
+              nickname = state["next_nick"]
+            else:
+              user_id = state["user_id"] or "test_user"
+              nickname = state["nickname"] or "测试用户"
+
+            now = datetime.now()
+            comment = Comment(
+              user_id=user_id,
+              nickname=nickname,
+              content=content,
             )
-      # 自动滚动到底部
-      scroll_area.scroll_to(percent=1.0)
+            studio.send_comment(comment)
+            _add_comment_bubble(nickname, content, now.strftime("%H:%M:%S"))
 
-    def add_response_bubble(content: str):
-      """添加主播回复气泡（左侧）"""
-      with chat_container:
-        with ui.row().classes("w-full justify-start"):
-          ui.chat_message(
-            content,
-            name="主播",
-            sent=False,
-            stamp=datetime.now().strftime("%H:%M:%S"),
-          )
-      # 自动滚动到底部
-      scroll_area.scroll_to(percent=1.0)
+            msg_input.value = ""
 
-    # 注册主播回复回调
-    def on_response(response):
-      add_response_bubble(response.content)
+            if state["multi_user"]:
+              state["next_id"], state["next_nick"] = _random_identity()
+              preview_label.text = (
+                f"下一个身份: {state['next_nick']} ({state['next_id']})"
+              )
 
-    callback_ref["fn"] = on_response
-    studio.on_response(on_response)
+          ui.button("发送", on_click=send).props("dense")
+          msg_input.on("keydown.enter", send)
 
-    # 客户端断开时自动清理回调，防止泄漏
-    def cleanup():
-      if callback_ref["fn"]:
-        studio.remove_callback(callback_ref["fn"])
-        callback_ref["fn"] = None
+  # ── 辅助函数 ──
 
-    context.client.on_disconnect(cleanup)
+  def _add_comment_bubble(nickname: str, content: str, timestamp: str):
+    """添加弹幕到右栏"""
+    with comment_container:
+      with ui.card().classes("w-full px-3 py-1"):
+        with ui.row().classes("items-center gap-2"):
+          ui.label(nickname).classes("text-xs font-bold text-green-700")
+          ui.label(timestamp).classes("text-xs text-gray-400")
+        ui.label(content).classes("text-sm")
+    comment_scroll.scroll_to(percent=1.0)
 
-    # 输入栏
-    with ui.row().classes("w-full gap-2"):
-      msg_input = ui.input(placeholder="输入弹幕...").props(
-        "dense outlined"
-      ).classes("flex-1")
-
-      def send():
-        content = msg_input.value.strip()
-        if not content or not studio.is_running:
-          return
-
-        # 确定身份
-        if state["multi_user"]:
-          user_id = state["next_id"]
-          nickname = state["next_nick"]
-        else:
-          user_id = state["user_id"] or "test_user"
-          nickname = state["nickname"] or "测试用户"
-
-        now = datetime.now()
-        comment = Comment(
-          user_id=user_id,
-          nickname=nickname,
-          content=content,
+  def _add_response_bubble(content: str):
+    """添加主播回复到左栏"""
+    with response_container:
+      with ui.card().classes("w-full px-3 py-2 bg-white"):
+        ui.label(content).classes("text-sm")
+        ui.label(datetime.now().strftime("%H:%M:%S")).classes(
+          "text-xs text-gray-400"
         )
-        studio.send_comment(comment)
-        add_comment_bubble(nickname, content, now.strftime("%H:%M:%S"))
+    response_scroll.scroll_to(percent=1.0)
 
-        msg_input.value = ""
+  # ── 回调注册 ──
 
-        # 多用户模式：预生成下一个身份
-        if state["multi_user"]:
-          state["next_id"], state["next_nick"] = _random_identity()
-          preview_label.text = f"下一个身份: {state['next_nick']} ({state['next_id']})"
+  def on_response(response):
+    """完整回复回调（非流式，或流式的兜底）"""
+    if response.id in streamed_ids:
+      return
+    _add_response_bubble(response.content)
 
-      send_btn = ui.button("发送", on_click=send).props("dense")
-      msg_input.on("keydown.enter", send)
+  callback_ref["fn"] = on_response
+  studio.on_response(on_response)
+
+  def on_chunk(chunk: ResponseChunk):
+    """流式回复片段回调"""
+    if chunk.response_id not in streaming_bubbles:
+      # 首个 chunk：在左栏创建可更新的气泡
+      with response_container:
+        card = ui.card().classes("w-full px-3 py-2 bg-white")
+        with card:
+          content_label = ui.label(chunk.accumulated).classes("text-sm")
+      streaming_bubbles[chunk.response_id] = (content_label, card)
+      response_scroll.scroll_to(percent=1.0)
+    else:
+      content_label, card = streaming_bubbles[chunk.response_id]
+      content_label.set_text(chunk.accumulated)
+
+    if chunk.done:
+      # 添加时间戳（与非流式气泡一致）
+      _, card = streaming_bubbles.pop(chunk.response_id, (None, None))
+      if card is not None:
+        with card:
+          ui.label(datetime.now().strftime("%H:%M:%S")).classes(
+            "text-xs text-gray-400"
+          )
+      streamed_ids.append(chunk.response_id)
+      response_scroll.scroll_to(percent=1.0)
+
+  callback_ref["chunk_fn"] = on_chunk
+  studio.on_response_chunk(on_chunk)
+
+  # ── 清理 ──
+
+  def cleanup():
+    if callback_ref["fn"]:
+      studio.remove_callback(callback_ref["fn"])
+      callback_ref["fn"] = None
+    if callback_ref["chunk_fn"]:
+      studio.remove_chunk_callback(callback_ref["chunk_fn"])
+      callback_ref["chunk_fn"] = None
+
+  context.client.on_disconnect(cleanup)
