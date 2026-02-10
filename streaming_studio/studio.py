@@ -366,6 +366,25 @@ class StreamingStudio:
       包含当前运行状态的字典
     """
     recent = list(self._comment_buffer)[-10:]
+
+    # 构造完整 prompt 预览（包含系统提示词 + 用户消息）
+    full_prompt = None
+    if self._last_prompt:
+      system_prompt = self.llm_wrapper.pipeline.system_prompt
+      history = self.llm_wrapper.history
+
+      parts = [f"=== 系统提示词 ===\n{system_prompt}\n"]
+
+      if history:
+        parts.append("=== 对话历史 ===")
+        for user_msg, ai_msg in history[-3:]:  # 只显示最近 3 轮
+          parts.append(f"用户: {user_msg}")
+          parts.append(f"助手: {ai_msg}")
+        parts.append("")
+
+      parts.append(f"=== 当前用户消息 ===\n{self._last_prompt}")
+      full_prompt = "\n".join(parts)
+
     return {
       "is_running": self._running,
       "min_interval": self.min_interval,
@@ -377,6 +396,7 @@ class StreamingStudio:
         self._last_reply_time.isoformat() if self._last_reply_time else None
       ),
       "last_prompt": self._last_prompt,
+      "last_full_prompt": full_prompt,  # 完整 prompt（含系统提示词）
       "recent_comments": [
         {
           "nickname": c.nickname,

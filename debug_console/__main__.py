@@ -38,12 +38,16 @@ def main():
 
   args = parser.parse_args()
 
-  run(
-    model_type=MODEL_MAP[args.model],
-    model_name=args.model_name,
-    persona=args.persona,
-    port=args.port,
-  )
+  try:
+    run(
+      model_type=MODEL_MAP[args.model],
+      model_name=args.model_name,
+      persona=args.persona,
+      port=args.port,
+    )
+  except KeyboardInterrupt:
+    print("\n正在关闭...")
+    sys.exit(0)
 
 
 if __name__ == "__main__":

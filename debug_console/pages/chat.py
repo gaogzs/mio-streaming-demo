@@ -111,10 +111,11 @@ def create_chat_page(studio: StreamingStudio) -> None:
 
     ui.separator()
 
-    # 聊天消息区域
-    chat_container = ui.column().classes(
-      "w-full flex-1 gap-2 overflow-auto p-2 bg-gray-50 rounded min-h-[300px] max-h-[500px]"
-    )
+    # 聊天消息区域（使用 scroll_area 支持滚动控制）
+    with ui.scroll_area().classes(
+      "w-full flex-1 bg-gray-50 rounded border"
+    ).style("height: calc(100vh - 350px); min-height: 300px") as scroll_area:
+      chat_container = ui.column().classes("w-full gap-2 p-2")
 
     def add_comment_bubble(nickname: str, content: str, timestamp: str):
       """添加弹幕气泡（右侧）"""
@@ -127,6 +128,8 @@ def create_chat_page(studio: StreamingStudio) -> None:
               name=nickname,
               sent=True,
             )
+      # 自动滚动到底部
+      scroll_area.scroll_to(percent=1.0)
 
     def add_response_bubble(content: str):
       """添加主播回复气泡（左侧）"""
@@ -139,7 +142,7 @@ def create_chat_page(studio: StreamingStudio) -> None:
             stamp=datetime.now().strftime("%H:%M:%S"),
           )
       # 自动滚动到底部
-      chat_container.scroll_to(percent=1.0)
+      scroll_area.scroll_to(percent=1.0)
 
     # 注册主播回复回调
     def on_response(response):

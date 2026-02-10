@@ -42,6 +42,7 @@ def run(
     persona=persona,
     model_type=model_type,
     model_name=model_name,
+    enable_memory=True,  # 开启记忆功能
   )
   collector = StateCollector(studio)
 

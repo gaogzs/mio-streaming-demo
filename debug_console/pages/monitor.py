@@ -209,5 +209,6 @@ def _update_prompt_card(refs: dict, state: dict) -> None:
   if not refs or not state:
     return
 
-  prompt = state.get("last_prompt")
+  # 使用完整 prompt（包含系统提示词）
+  prompt = state.get("last_full_prompt") or state.get("last_prompt")
   refs["prompt_text"].content = prompt if prompt else "（等待首次触发）"
