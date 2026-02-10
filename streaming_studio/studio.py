@@ -65,6 +65,9 @@ class StreamingStudio:
     # 上次回复时间（用于区分新旧弹幕）
     self._last_reply_time: Optional[datetime] = None
 
+    # 最近一次发给模型的完整 prompt（供调试监控）
+    self._last_prompt: Optional[str] = None
+
     # 回复队列（供外部获取）
     self._response_queue: asyncio.Queue[StreamerResponse] = asyncio.Queue()
 
@@ -306,6 +309,7 @@ class StreamingStudio:
       回复对象
     """
     prompt = self._format_comments_for_prompt(old_comments, new_comments)
+    self._last_prompt = prompt
 
     try:
       content = await self.llm_wrapper.achat(prompt)
@@ -315,6 +319,38 @@ class StreamingStudio:
 
     reply_ids = tuple(c.id for c in new_comments)
     return StreamerResponse(content=content, reply_to=reply_ids)
+
+  def debug_state(self) -> dict:
+    """
+    获取调试状态快照（供监控面板使用）
+
+    Returns:
+      包含当前运行状态的字典
+    """
+    recent = list(self._comment_buffer)[-10:]
+    return {
+      "is_running": self._running,
+      "min_interval": self.min_interval,
+      "max_interval": self.max_interval,
+      "buffer_size": len(self._comment_buffer),
+      "buffer_max": self._comment_buffer.maxlen,
+      "pending_comment_count": self._pending_comment_count,
+      "last_reply_time": (
+        self._last_reply_time.isoformat() if self._last_reply_time else None
+      ),
+      "last_prompt": self._last_prompt,
+      "recent_comments": [
+        {
+          "nickname": c.nickname,
+          "user_id": c.user_id,
+          "content": c.content,
+          "timestamp": c.timestamp.strftime("%H:%M:%S"),
+        }
+        for c in recent
+      ],
+      "total_comments": self.database.get_comment_count(),
+      "total_responses": self.database.get_response_count(),
+    }
 
   def get_stats(self) -> dict:
     """

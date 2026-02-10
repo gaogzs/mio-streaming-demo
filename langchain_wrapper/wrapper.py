@@ -190,6 +190,34 @@ class LLMWrapper:
     full_input = f"[{context}] {user_input}"
     return self.chat(full_input, save_history)
 
+  def debug_state(self) -> dict:
+    """
+    获取调试状态快照（供监控面板使用）
+
+    Returns:
+      包含当前运行状态的字典
+    """
+    return {
+      "model_type": self.model_type.value,
+      "model_name": self.model_name,
+      "persona": self.persona,
+      "history_length": len(self._history),
+      "has_memory": self.has_memory,
+      "background_tasks": len(self._background_tasks),
+      "system_prompt_preview": self.pipeline.system_prompt[:200],
+    }
+
+  def memory_debug_state(self) -> Optional[dict]:
+    """
+    获取记忆系统的调试状态快照
+
+    Returns:
+      记忆系统状态字典，未启用记忆时返回 None
+    """
+    if self._memory is None:
+      return None
+    return self._memory.debug_state()
+
   async def achat_with_context(
     self,
     user_input: str,

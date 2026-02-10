@@ -75,6 +75,7 @@
 | memory | 分层记忆系统（RAG） | [memory.md](memory.md) |
 | streaming_studio | 直播间核心逻辑 | [streaming_studio.md](streaming_studio.md) |
 | connection | WebSocket 服务 | [connection.md](connection.md) |
+| debug_console | NiceGUI 调试控制台 | [debug_console.md](debug_console.md) |
 
 ## 快速开始
 
@@ -129,3 +130,5 @@ python -m connection.test_chatter_web
 - [x] Phase 6: 角色人格拆分 (personas/)
 - [x] Phase 7: 预设模型工厂方法 (ModelProvider)
 - [x] Phase 8: 分层记忆系统 (memory/)
+- [x] Phase 9: 双轨制回复触发机制 (streaming_studio/)
+- [x] Phase 10: NiceGUI 调试控制台 (debug_console/)

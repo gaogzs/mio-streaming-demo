@@ -21,6 +21,13 @@ python -m streaming_studio.test_chatter_studio
 
 # 测试 WebSocket 服务 (待实现)
 python -m connection.test_chatter_web
+
+# 弹幕模拟测试（随机用户身份）
+python -m streaming_studio.test_danmaku_studio
+
+# NiceGUI 调试控制台（监控面板 + 模拟直播间）
+python -m debug_console
+python -m debug_console --port 8080 --persona karin --model openai
 ```
 
 ## 架构设计
@@ -55,8 +62,15 @@ prompts/              # 通用提示词
   prompt_loader.py    #   PromptLoader（加载 base_instruction + 委托 PersonaLoader）
   base_instruction.txt #  主播基础指令
 
-streaming_studio/     # 虚拟直播间：异步运行、弹幕队列、回复分发、SQLite存储
+streaming_studio/     # 虚拟直播间：异步运行、弹幕缓冲、双轨定时器、回复分发、SQLite存储
 connection/           # WebSocket层：StreamServiceHost、多客户端订阅
+
+debug_console/        # NiceGUI 本地调试控制台
+  app.py              #   应用入口 + 顶级菜单路由
+  state_collector.py  #   聚合各模块 debug_state() 的状态收集器
+  pages/
+    monitor.py        #   监控面板（实时显示记忆/弹幕/prompt/定时器状态）
+    chat.py           #   模拟直播间（单用户/多用户随机身份模式）
 secrets/              # API密钥等敏感信息(gitignore)
 plan/                 # 工作计划文档
 spec/                 # 项目规范(只读，不要修改)
@@ -71,6 +85,9 @@ connection → streaming_studio → langchain_wrapper
                               personas/（读取 static_memories）
 prompts → personas/（读取 system_prompt）
 langchain_wrapper/wrapper → prompts/（获取完整 system prompt）
+debug_console → streaming_studio（读取 debug_state）
+              → langchain_wrapper（读取 debug_state）
+              → memory（读取 debug_state）
 ```
 
 ## 可用角色

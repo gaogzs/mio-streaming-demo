@@ -13,3 +13,4 @@ chromadb
 langchain-chroma
 sentence-transformers
 coolname
+nicegui

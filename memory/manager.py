@@ -202,6 +202,29 @@ class MemoryManager:
     self._summary_task = None
     self._cleanup_task = None
 
+  def debug_state(self) -> dict:
+    """
+    获取调试状态快照（供监控面板使用）
+
+    Returns:
+      包含记忆系统当前状态的字典
+    """
+    active_memories = self._active.get_all()
+    return {
+      "active_count": self._active.count(),
+      "active_capacity": self._active._config.capacity,
+      "active_memories": [
+        {"content": m.content, "timestamp": m.timestamp.strftime("%H:%M:%S")}
+        for m in active_memories
+      ],
+      "temporary_count": self._temporary.count(),
+      "summary_count": self._summary_layer.count(),
+      "static_count": self._static.count(),
+      "recent_interactions": len(self._recent_interactions),
+      "summary_task_running": self._summary_task is not None and not self._summary_task.done(),
+      "cleanup_task_running": self._cleanup_task is not None and not self._cleanup_task.done(),
+    }
+
   async def _summary_loop(self) -> None:
     """
     定时汇总循环
