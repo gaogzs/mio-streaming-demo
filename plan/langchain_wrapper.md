@@ -31,18 +31,18 @@ class ModelProvider:
 
   # 预设工厂方法
   @classmethod
-  def remote_large(cls) -> BaseChatModel   # GPT-4o
+  def remote_large(cls) -> BaseChatModel   # GPT-5.2
   @classmethod
-  def remote_small(cls) -> BaseChatModel   # GPT-4o-mini
+  def remote_small(cls) -> BaseChatModel   # GPT-5-mini
   @classmethod
-  def local_large(cls) -> BaseChatModel    # Qwen2.5-7B-Instruct
+  def local_large(cls) -> BaseChatModel    # Qwen3-8B
   @classmethod
-  def local_small(cls) -> BaseChatModel    # Qwen2.5-1.5B-Instruct
+  def local_small(cls) -> BaseChatModel    # Qwen3-1.7B
 ```
 
 支持的模型源:
-- OpenAI API (gpt-4o, gpt-4o-mini等)
-- Anthropic API (claude-3等)
+- OpenAI API (gpt-5.2, gpt-5-mini等)
+- Anthropic API (claude-opus-4.6等)
 - 本地Qwen (通过vllm兼容OpenAI接口)
 
 ### StreamingPipeline

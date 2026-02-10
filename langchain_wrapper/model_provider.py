@@ -95,7 +95,7 @@ class ModelProvider:
       raise ValueError("未配置 OpenAI API Key，请设置环境变量 OPENAI_API_KEY 或在 secrets/api_keys.json 中配置")
 
     return ChatOpenAI(
-      model=model_name or "gpt-4o-mini",
+      model=model_name or "gpt-5",
       api_key=api_key,
       **kwargs
     )
@@ -134,7 +134,7 @@ class ModelProvider:
       base_url = "http://localhost:8000/v1"
 
     return ChatOpenAI(
-      model=model_name or "Qwen/Qwen2.5-7B-Instruct",
+      model=model_name or "Qwen/Qwen3-8B",
       api_key="not-needed",  # 本地部署通常不需要key
       base_url=base_url,
       **kwargs
@@ -147,51 +147,51 @@ class ModelProvider:
   @classmethod
   def remote_large(cls, **kwargs) -> BaseChatModel:
     """
-    远程大模型（GPT-4o）
+    远程大模型（GPT-5.2）
 
     用途：主对话、复杂推理
     """
     return cls().get_model(
       ModelType.OPENAI,
-      model_name="gpt-4o",
+      model_name="gpt-5.2",
       **kwargs,
     )
 
   @classmethod
   def remote_small(cls, **kwargs) -> BaseChatModel:
     """
-    远程小模型（GPT-4o-mini）
+    远程小模型（GPT-5-mini）
 
     用途：支线任务、分类、摘要等轻量计算
     """
     return cls().get_model(
       ModelType.OPENAI,
-      model_name="gpt-4o-mini",
+      model_name="gpt-5-mini",
       **kwargs,
     )
 
   @classmethod
   def local_large(cls, **kwargs) -> BaseChatModel:
     """
-    本地大模型（Qwen2.5-7B-Instruct）
+    本地大模型（Qwen3-8B）
 
     用途：离线主对话、无需 API 的场景
     """
     return cls().get_model(
       ModelType.LOCAL_QWEN,
-      model_name="Qwen/Qwen2.5-7B-Instruct",
+      model_name="Qwen/Qwen3-8B",
       **kwargs,
     )
 
   @classmethod
   def local_small(cls, **kwargs) -> BaseChatModel:
     """
-    本地小模型（Qwen2.5-1.5B-Instruct）
+    本地小模型（Qwen3-1.7B）
 
     用途：本地支线任务、资源受限环境
     """
     return cls().get_model(
       ModelType.LOCAL_QWEN,
-      model_name="Qwen/Qwen2.5-1.5B-Instruct",
+      model_name="Qwen/Qwen3-1.7B",
       **kwargs,
     )
