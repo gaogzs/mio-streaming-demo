@@ -132,3 +132,4 @@ python -m connection.test_chatter_web
 - [x] Phase 8: 分层记忆系统 (memory/)
 - [x] Phase 9: 双轨制回复触发机制 (streaming_studio/)
 - [x] Phase 10: NiceGUI 调试控制台 (debug_console/)
+- [x] Phase 11: 全链路流式回复 + 模拟直播间左右分栏

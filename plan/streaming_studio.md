@@ -42,6 +42,17 @@ class StreamerResponse:
   timestamp: datetime  # 回复时间
 ```
 
+### ResponseChunk (流式回复片段)
+
+```python
+@dataclass(frozen=True)
+class ResponseChunk:
+  response_id: str      # 所属回复的 ID
+  chunk: str            # 本次新增的文本片段
+  accumulated: str      # 截至目前的累积文本
+  done: bool = False    # 是否为最后一个片段
+```
+
 ## 核心类
 
 ### StudioConfig
@@ -108,6 +119,19 @@ class CommentDatabase:
 - 格式化时标注相对时间（如"35秒前"）和绝对时间（如"14:23:05"）
 - 检测沉默状态，当无新弹幕时计算并显示距上次弹幕的秒数
 
+#### 流式回复
+
+运行时属性 `enable_streaming: bool`（默认 `False`），由上游调用方在运行时设置：
+
+```python
+studio = StreamingStudio(persona="karin", model_type=ModelType.OPENAI)
+studio.enable_streaming = True  # 运行时切换，非构造参数
+```
+
+启用后，`_main_loop` 调用 `_generate_response_streaming()` 代替 `_generate_response()`，
+通过 `llm_wrapper.achat_stream()` 逐 token 生成并分发 `ResponseChunk`。
+完成后仍返回完整的 `StreamerResponse` 走正常的保存/回调流程。
+
 #### 方法列表
 
 ```python
@@ -124,9 +148,13 @@ class StreamingStudio:
   # 回复获取
   async def get_response(timeout=None) -> StreamerResponse
 
-  # 回调机制
+  # 回调机制（完整回复）
   def on_response(callback: Callable[[StreamerResponse], None])
   def remove_callback(callback)
+
+  # 回调机制（流式片段）
+  def on_response_chunk(callback: Callable[[ResponseChunk], None])
+  def remove_chunk_callback(callback)
 
   # 调试监控
   def debug_state() -> dict
@@ -279,3 +307,6 @@ studio = StreamingStudio(llm_wrapper=llm)
 - [x] debug_state() 调试接口
 - [x] 命令行测试（单用户）
 - [x] 弹幕模拟测试（随机用户）
+- [x] ResponseChunk 数据模型
+- [x] 流式回复生成 (`_generate_response_streaming`)
+- [x] 流式片段回调 (`on_response_chunk` / `remove_chunk_callback`)

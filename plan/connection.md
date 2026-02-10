@@ -45,6 +45,19 @@ connection/
 }
 ```
 
+流式回复片段 (server -> output, 当 studio 启用流式时):
+```json
+{
+  "type": "response_chunk",
+  "response_id": "uuid-xxx",
+  "chunk": "小明",
+  "accumulated": "小明",
+  "done": false
+}
+```
+
+流式完成后仍会发送完整的 `response` 消息，客户端可自行选择使用哪种。
+
 ## 核心类
 
 ### StreamServiceHost
@@ -69,3 +82,4 @@ test_chatter_web.py 提供交互式命令行客户端:
 
 - [x] StreamServiceHost实现
 - [x] 测试客户端实现
+- [x] 流式回复片段广播 (`response_chunk`)

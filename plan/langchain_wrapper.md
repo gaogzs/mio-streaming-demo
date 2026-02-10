@@ -68,6 +68,25 @@ class StreamingPipeline:
   def __init__(model, system_prompt)
   def invoke(input_text, history) -> str
   async def ainvoke(input_text, history) -> str
+  async def astream(input_text, history, extra_context) -> AsyncIterator[str]
+```
+
+内部维护两条链：
+- `_stream_chain`：基础管道（不含后处理器），用于流式输出
+- `_chain`：完整管道（`_stream_chain` + 后处理器），用于非流式调用
+
+```python
+# 基础管道（流式使用）
+self._stream_chain = (
+  RunnableLambda(inject_system_prompt)
+  | RunnableLambda(format_history)
+  | RunnableLambda(apply_preprocessors)
+  | self._prompt_template
+  | self.model
+  | self._output_parser
+)
+# 完整管道（非流式使用）
+self._chain = self._stream_chain | RunnableLambda(apply_postprocessors)
 ```
 
 ### LLMWrapper
@@ -80,7 +99,10 @@ class LLMWrapper:
   def __init__(model_type, model_name, persona)
   def chat(user_input, history) -> str
   async def achat(user_input, history) -> str
+  async def achat_stream(user_input, save_history) -> AsyncIterator[str]
 ```
+
+`achat_stream()` 逐 token yield，流结束后在 `finally` 块中执行后处理 + 历史保存 + 记忆记录（仅在流成功完成时）。
 
 ## 状态
 
@@ -88,3 +110,5 @@ class LLMWrapper:
 - [x] 预设模型工厂方法 (remote_large/small, local_large/small)
 - [x] StreamingPipeline 实现 (LCEL重构)
 - [x] LLMWrapper 实现
+- [x] 流式管道 (`_stream_chain` + `astream()`)
+- [x] 流式聊天 (`achat_stream()`)
