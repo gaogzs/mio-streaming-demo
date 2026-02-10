@@ -9,14 +9,14 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class ActiveConfig:
   """active 层配置"""
-  capacity: int = 10  # FIFO 容量（条数）
+  capacity: int = 5  # FIFO 容量（条数）
 
 
 @dataclass(frozen=True)
 class TemporaryConfig:
   """temporary 层配置"""
   significance_threshold: float = 0.100  # 低于此值的记忆将被删除
-  decay_coefficient: float = 0.950       # 未被取用时 significance 乘以此系数衰减
+  decay_coefficient: float = 0.9       # 未被取用时 significance 乘以此系数衰减
 
 
 @dataclass(frozen=True)

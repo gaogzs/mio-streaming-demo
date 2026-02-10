@@ -289,7 +289,13 @@ class StreamingStudio:
       lines = [f"- {self._format_comment(c, now)}" for c in new_comments]
       parts.append("【上次回复后的新弹幕】\n" + "\n".join(lines))
     else:
-      parts.append("【上次回复后无人说话】")
+      # 计算距离最近一条弹幕的沉默时长
+      silence_msg = "【上次回复后无人说话】"
+      if old_comments:
+        last_comment = old_comments[-1]
+        silence_seconds = int((now - last_comment.timestamp).total_seconds())
+        silence_msg += f"\n（已经 {silence_seconds} 秒没人说话了）"
+      parts.append(silence_msg)
 
     return "\n\n".join(parts)
 
