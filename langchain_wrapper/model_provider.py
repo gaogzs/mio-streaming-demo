@@ -108,7 +108,7 @@ class ModelProvider:
       raise ValueError("未配置 OpenAI API Key，请设置环境变量 OPENAI_API_KEY 或在 secrets/api_keys.json 中配置")
 
     return ChatOpenAI(
-      model=model_name or "gpt-5",
+      model=model_name or "gpt-5.2",
       api_key=api_key,
       **kwargs
     )
@@ -126,7 +126,7 @@ class ModelProvider:
       raise ValueError("未配置 Anthropic API Key，请设置环境变量 ANTHROPIC_API_KEY 或在 secrets/api_keys.json 中配置")
 
     return ChatAnthropic(
-      model=model_name or "claude-3-haiku-20240307",
+      model=model_name or "claude-opus-4.5",
       api_key=api_key,
       **kwargs
     )
