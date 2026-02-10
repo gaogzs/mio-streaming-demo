@@ -19,6 +19,19 @@ class ModelType(Enum):
   LOCAL_QWEN = "local_qwen"
 
 
+# 预设远程模型名称映射
+REMOTE_MODELS = {
+  ModelType.OPENAI: {
+    "large": "gpt-5.2",
+    "small": "gpt-5-mini",
+  },
+  ModelType.ANTHROPIC: {
+    "large": "claude-opus-4.6",
+    "small": "claude-haiku-4.5",
+  },
+}
+
+
 class ModelProvider:
   """
   模型提供者类
@@ -145,30 +158,40 @@ class ModelProvider:
   # ============================================================
 
   @classmethod
-  def remote_large(cls, **kwargs) -> BaseChatModel:
+  def remote_large(
+    cls,
+    provider: ModelType = ModelType.OPENAI,
+    **kwargs
+  ) -> BaseChatModel:
     """
-    远程大模型（GPT-5.2）
+    远程大模型
 
     用途：主对话、复杂推理
+
+    Args:
+      provider: 模型源，默认 OpenAI (gpt-5.2)
+                支持 ANTHROPIC (claude-opus-4.6)
     """
-    return cls().get_model(
-      ModelType.OPENAI,
-      model_name="gpt-5.2",
-      **kwargs,
-    )
+    model_name = REMOTE_MODELS[provider]["large"]
+    return cls().get_model(provider, model_name=model_name, **kwargs)
 
   @classmethod
-  def remote_small(cls, **kwargs) -> BaseChatModel:
+  def remote_small(
+    cls,
+    provider: ModelType = ModelType.OPENAI,
+    **kwargs
+  ) -> BaseChatModel:
     """
-    远程小模型（GPT-5-mini）
+    远程小模型
 
     用途：支线任务、分类、摘要等轻量计算
+
+    Args:
+      provider: 模型源，默认 OpenAI (gpt-5-mini)
+                支持 ANTHROPIC (claude-haiku-4.5)
     """
-    return cls().get_model(
-      ModelType.OPENAI,
-      model_name="gpt-5-mini",
-      **kwargs,
-    )
+    model_name = REMOTE_MODELS[provider]["small"]
+    return cls().get_model(provider, model_name=model_name, **kwargs)
 
   @classmethod
   def local_large(cls, **kwargs) -> BaseChatModel:

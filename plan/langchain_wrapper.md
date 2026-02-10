@@ -26,14 +26,28 @@ class ModelType(Enum):
   ANTHROPIC = "anthropic"
   LOCAL_QWEN = "local_qwen"
 
+# 预设远程模型名称映射
+REMOTE_MODELS = {
+  ModelType.OPENAI: {
+    "large": "gpt-5.2",
+    "small": "gpt-5-mini",
+  },
+  ModelType.ANTHROPIC: {
+    "large": "claude-opus-4.6",
+    "small": "claude-haiku-4.5",
+  },
+}
+
 class ModelProvider:
   def get_model(model_type, model_name) -> BaseChatModel
 
   # 预设工厂方法
   @classmethod
-  def remote_large(cls) -> BaseChatModel   # GPT-5.2
+  def remote_large(cls, provider=ModelType.OPENAI) -> BaseChatModel
+    # OpenAI: gpt-5.2, Anthropic: claude-opus-4.6
   @classmethod
-  def remote_small(cls) -> BaseChatModel   # GPT-5-mini
+  def remote_small(cls, provider=ModelType.OPENAI) -> BaseChatModel
+    # OpenAI: gpt-5-mini, Anthropic: claude-haiku-4.5
   @classmethod
   def local_large(cls) -> BaseChatModel    # Qwen3-8B
   @classmethod
@@ -41,8 +55,8 @@ class ModelProvider:
 ```
 
 支持的模型源:
-- OpenAI API (gpt-5.2, gpt-5-mini等)
-- Anthropic API (claude-opus-4.6等)
+- OpenAI API (gpt-5.2, gpt-5-mini)
+- Anthropic API (claude-opus-4.6, claude-haiku-4.5)
 - 本地Qwen (通过vllm兼容OpenAI接口)
 
 ### StreamingPipeline
