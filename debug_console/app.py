@@ -14,7 +14,7 @@ project_root = Path(__file__).parent.parent
 if str(project_root) not in sys.path:
   sys.path.insert(0, str(project_root))
 
-from langchain_wrapper import LLMWrapper, ModelType
+from langchain_wrapper import ModelType
 from streaming_studio import StreamingStudio
 
 from .state_collector import StateCollector
@@ -37,13 +37,12 @@ def run(
     persona: 角色名称
     port: 监听端口
   """
-  # 初始化 LLM 和直播间
-  llm_wrapper = LLMWrapper(
+  # 初始化直播间
+  studio = StreamingStudio(
+    persona=persona,
     model_type=model_type,
     model_name=model_name,
-    persona=persona,
   )
-  studio = StreamingStudio(llm_wrapper=llm_wrapper)
   collector = StateCollector(studio)
 
   @ui.page("/")

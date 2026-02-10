@@ -19,6 +19,7 @@ if str(project_root) not in sys.path:
 from langchain_wrapper import LLMWrapper, ModelType
 from .models import Comment, StreamerResponse
 from .database import CommentDatabase
+from .config import StudioConfig
 
 
 class StreamingStudio:
@@ -33,30 +34,61 @@ class StreamingStudio:
 
   def __init__(
     self,
+    # 核心配置
+    persona: str = "karin",
+    model_type: ModelType = ModelType.OPENAI,
+    model_name: Optional[str] = None,
+    enable_memory: bool = False,
+    # 高级定制
     llm_wrapper: Optional[LLMWrapper] = None,
     database: Optional[CommentDatabase] = None,
-    recent_comments_limit: int = 20,
-    min_interval: float = 1.0,
-    max_interval: float = 10.0,
+    config: Optional[StudioConfig] = None,
   ):
     """
-    初始化直播间
+    初始化虚拟直播间
 
     Args:
-      llm_wrapper: LLM包装器，不指定则使用默认配置
-      database: 数据库，不指定则使用默认配置
-      recent_comments_limit: 每次触发时收集的最近弹幕数上限
-      min_interval: 随机等待下限（秒）
-      max_interval: 随机等待上限（秒）
+      persona: 主播人设 (karin/sage/kuro)
+      model_type: 模型类型 (OPENAI/ANTHROPIC/LOCAL_QWEN)
+      model_name: 模型名称（可选，使用默认值）
+      enable_memory: 是否启用分层记忆系统
+      llm_wrapper: 自定义 LLM 封装（高级用户，传入后忽略 persona/model_type/enable_memory）
+      database: 自定义数据库（高级用户）
+      config: 自定义行为配置（高级用户）
     """
-    self.llm_wrapper = llm_wrapper or LLMWrapper()
+    # 加载配置
+    self.config = config or StudioConfig()
+
+    # 初始化 LLMWrapper
+    if llm_wrapper is not None:
+      # 高级用户：直接使用传入的 wrapper
+      self.llm_wrapper = llm_wrapper
+    else:
+      # 普通用户：根据参数自动创建
+      memory_manager = None
+      if enable_memory:
+        from memory import MemoryManager, MemoryConfig
+        memory_manager = MemoryManager(
+          persona=persona,
+          config=MemoryConfig(),
+        )
+
+      self.llm_wrapper = LLMWrapper(
+        model_type=model_type,
+        model_name=model_name,
+        persona=persona,
+        memory_manager=memory_manager,
+      )
+
     self.database = database or CommentDatabase()
-    self.recent_comments_limit = recent_comments_limit
-    self.min_interval = min_interval
-    self.max_interval = max_interval
+
+    # 从 config 加载行为参数
+    self.recent_comments_limit = self.config.recent_comments_limit
+    self.min_interval = self.config.min_interval
+    self.max_interval = self.config.max_interval
 
     # 弹幕缓冲区（环形，保留足够历史）
-    self._comment_buffer: deque[Comment] = deque(maxlen=200)
+    self._comment_buffer: deque[Comment] = deque(maxlen=self.config.buffer_maxlen)
 
     # 新弹幕到达通知
     self._comment_arrived: asyncio.Event = asyncio.Event()

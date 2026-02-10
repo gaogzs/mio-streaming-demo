@@ -14,7 +14,7 @@ if str(project_root) not in sys.path:
 
 from coolname import generate
 
-from langchain_wrapper import LLMWrapper, ModelType
+from langchain_wrapper import ModelType
 from streaming_studio import StreamingStudio, Comment
 
 
@@ -102,8 +102,10 @@ class TestDanmakuStudio:
     # 初始化直播间
     print("正在初始化直播间...")
     try:
-      llm_wrapper = LLMWrapper(model_type=model_type, persona=persona)
-      self.studio = StreamingStudio(llm_wrapper=llm_wrapper)
+      self.studio = StreamingStudio(
+        persona=persona,
+        model_type=model_type,
+      )
       print("初始化成功！")
     except Exception as e:
       print(f"初始化失败: {e}")

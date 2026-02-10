@@ -11,6 +11,7 @@ streaming_studio/
 ├── __init__.py               # 模块导出
 ├── models.py                 # Comment, StreamerResponse 数据模型
 ├── database.py               # SQLite弹幕存储
+├── config.py                 # StudioConfig 行为配置
 ├── studio.py                 # StreamingStudio 异步核心类
 ├── test_chatter_studio.py    # 命令行测试（单用户）
 └── test_danmaku_studio.py    # 弹幕模拟测试（随机用户身份）
@@ -43,6 +44,19 @@ class StreamerResponse:
 
 ## 核心类
 
+### StudioConfig
+
+行为配置，管理回复节奏、缓冲区大小等细节参数。
+
+```python
+@dataclass(frozen=True)
+class StudioConfig:
+  min_interval: float = 1.0         # 回复最小间隔（秒）
+  max_interval: float = 10.0        # 回复最大间隔（秒）
+  recent_comments_limit: int = 20   # 每次回复收集的最近弹幕数
+  buffer_maxlen: int = 200          # 弹幕缓冲区最大容量
+```
+
 ### CommentDatabase
 
 SQLite存储，保存弹幕和回复记录。
@@ -61,13 +75,22 @@ class CommentDatabase:
 
 #### 构造参数
 
+**核心配置：**
+
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `llm_wrapper` | LLMWrapper | - | LLM 调用封装 |
-| `database` | CommentDatabase | - | 弹幕数据库 |
-| `recent_comments_limit` | int | 20 | 每次触发时收集的最近弹幕数上限 |
-| `min_interval` | float | 1.0 | 随机等待下限（秒） |
-| `max_interval` | float | 10.0 | 随机等待上限（秒） |
+| `persona` | str | "karin" | 主播人设 (karin/sage/kuro) |
+| `model_type` | ModelType | OPENAI | 模型类型 (OPENAI/ANTHROPIC/LOCAL_QWEN) |
+| `model_name` | str \| None | None | 模型名称（可选） |
+| `enable_memory` | bool | False | 是否启用分层记忆系统 |
+
+**高级定制：**
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `llm_wrapper` | LLMWrapper \| None | None | 自定义 LLM 封装（传入后忽略上述核心配置） |
+| `database` | CommentDatabase \| None | None | 自定义数据库 |
+| `config` | StudioConfig \| None | None | 自定义行为配置 |
 
 #### 双轨定时器机制
 
@@ -134,6 +157,82 @@ class StreamingStudio:
 （已经 45 秒没人说话了）
 ```
 
+## 使用示例
+
+### 基本用法（推荐）
+
+```python
+from streaming_studio import StreamingStudio, Comment
+from langchain_wrapper import ModelType
+
+# 创建直播间
+studio = StreamingStudio(
+    persona="karin",
+    model_type=ModelType.OPENAI,
+    enable_memory=False,  # 默认不启用记忆
+)
+
+# 启动
+await studio.start()
+
+# 发送弹幕
+studio.send_comment(Comment(
+    user_id="user_001",
+    nickname="小明",
+    content="主播好！",
+))
+
+# 获取回复
+response = await studio.get_response()
+print(response.content)
+
+# 停止
+await studio.stop()
+```
+
+### 启用记忆系统
+
+```python
+studio = StreamingStudio(
+    persona="karin",
+    model_type=ModelType.OPENAI,
+    enable_memory=True,  # 启用分层记忆
+)
+```
+
+### 自定义行为配置
+
+```python
+from streaming_studio import StreamingStudio, StudioConfig
+
+studio = StreamingStudio(
+    persona="karin",
+    config=StudioConfig(
+        min_interval=2.0,           # 回复间隔 2-15 秒
+        max_interval=15.0,
+        recent_comments_limit=30,   # 每次考虑最近 30 条弹幕
+        buffer_maxlen=500,          # 缓冲区容量 500
+    ),
+)
+```
+
+### 高级定制（自定义 LLMWrapper）
+
+```python
+from langchain_wrapper import LLMWrapper, ModelType
+
+# 手动创建 LLMWrapper
+llm = LLMWrapper(
+    model_type=ModelType.ANTHROPIC,
+    model_name="claude-opus-4.6",
+    persona="sage",
+    max_history=50,  # 保留更多历史
+)
+
+# 传入自定义 wrapper
+studio = StreamingStudio(llm_wrapper=llm)
+```
+
 ## 核心特性
 
 ### 双轨定时器
@@ -171,10 +270,12 @@ class StreamingStudio:
 
 - [x] 数据模型定义
 - [x] 数据库实现
+- [x] StudioConfig 行为配置
 - [x] StreamingStudio 核心实现
 - [x] 双轨定时器机制
 - [x] 弹幕格式化（时间标注）
 - [x] 沉默检测
+- [x] 简化 API（persona/model_type/enable_memory 直接传入）
 - [x] debug_state() 调试接口
 - [x] 命令行测试（单用户）
 - [x] 弹幕模拟测试（随机用户）
