@@ -272,7 +272,7 @@ class StreamingStudio:
             count = self._pending_comment_count
             self._pending_comment_count = 0
             self._comment_arrived.clear()
-            remaining = max(0.0, remaining - count * self._config.comment_wait_reduction)
+            remaining = max(0.0, remaining - count * self.config.comment_wait_reduction)
           except asyncio.TimeoutError:
             # 自然超时
             break
