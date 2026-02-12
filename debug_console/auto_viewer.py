@@ -31,8 +31,8 @@ class AutoViewerConfig:
     max_interval: 最大生成间隔（秒）
     max_responses_context: 主播回复上下文数量（最近 N 条）
   """
-  min_interval: float = 5.0
-  max_interval: float = 12.0
+  min_interval: float = 1.0
+  max_interval: float = 5.0
   max_responses_context: int = 3
 
 
