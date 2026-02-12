@@ -22,7 +22,7 @@ class TemporaryConfig:
 @dataclass(frozen=True)
 class SummaryConfig:
   """summary 层配置"""
-  interval_seconds: float = 300.0        # 汇总触发间隔（秒），默认 5 分钟
+  interval_seconds: float = 60.0        # 汇总触发间隔（秒），默认 5 分钟
   significance_threshold: float = 0.050  # 低于此值的记忆将被删除
   decay_coefficient: float = 0.980       # 未被取用时 significance 乘以此系数衰减
   cleanup_interval_seconds: float = 600.0  # 清理触发间隔（秒），默认 10 分钟

@@ -16,10 +16,10 @@ class StudioConfig:
   """
 
   # 双轨定时器参数
-  min_interval: float = 1.0
+  min_interval: float = 5.0
   """回复最小间隔（秒）"""
 
-  max_interval: float = 10.0
+  max_interval: float = 15.0
   """回复最大间隔（秒）"""
 
   # 弹幕处理参数
