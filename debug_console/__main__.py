@@ -35,6 +35,10 @@ def main():
     help="模型类型 (默认 openai)",
   )
   parser.add_argument("--model-name", default=None, help="模型名称 (可选)")
+  parser.add_argument(
+    "--global-memory", action="store_true", default=False,
+    help="开启全局记忆（持久化到文件，默认关闭）",
+  )
 
   args = parser.parse_args()
 
@@ -44,6 +48,7 @@ def main():
       model_name=args.model_name,
       persona=args.persona,
       port=args.port,
+      enable_global_memory=args.global_memory,
     )
   except KeyboardInterrupt:
     print("\n正在关闭...")

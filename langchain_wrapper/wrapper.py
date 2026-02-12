@@ -85,6 +85,11 @@ class LLMWrapper:
     return self._memory is not None
 
   @property
+  def memory_manager(self) -> Optional["MemoryManager"]:
+    """获取记忆管理器实例"""
+    return self._memory
+
+  @property
   def last_extra_context(self) -> str:
     """最近一次使用的记忆上下文（供调试监控）"""
     return self._last_extra_context

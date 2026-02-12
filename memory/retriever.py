@@ -51,6 +51,7 @@ class MemoryRetriever:
     self._summary = summary
     self._static = static
     self._config = config or RetrievalConfig()
+    self.session_id: Optional[str] = None
 
   def retrieve(self, query: str) -> tuple[str, str]:
     """
@@ -83,7 +84,10 @@ class MemoryRetriever:
     else:
       rag_entries = self._retrieve_quota(query)
 
-    rag_text = format_retrieved_memories(rag_entries)
+    rag_text = format_retrieved_memories(
+      rag_entries,
+      current_session_id=self.session_id,
+    )
 
     return active_text, rag_text
 

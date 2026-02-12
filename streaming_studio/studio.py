@@ -40,6 +40,7 @@ class StreamingStudio:
     model_type: ModelType = ModelType.OPENAI,
     model_name: Optional[str] = None,
     enable_memory: bool = False,
+    enable_global_memory: bool = False,
     # 高级定制
     llm_wrapper: Optional[LLMWrapper] = None,
     database: Optional[CommentDatabase] = None,
@@ -53,10 +54,17 @@ class StreamingStudio:
       model_type: 模型类型 (OPENAI/ANTHROPIC/LOCAL_QWEN)
       model_name: 模型名称（可选，使用默认值）
       enable_memory: 是否启用分层记忆系统
+      enable_global_memory: 是否开启全局记忆（持久化到文件），需同时开启 enable_memory
       llm_wrapper: 自定义 LLM 封装（高级用户，传入后忽略 persona/model_type/enable_memory）
       database: 自定义数据库（高级用户）
       config: 自定义行为配置（高级用户）
     """
+    self._persona = persona
+    self._enable_global_memory = enable_global_memory
+
+    if enable_global_memory and not enable_memory:
+      raise ValueError("enable_global_memory=True 需要同时开启 enable_memory=True")
+
     # 加载配置
     self.config = config or StudioConfig()
 
@@ -72,6 +80,7 @@ class StreamingStudio:
         memory_manager = MemoryManager(
           persona=persona,
           config=MemoryConfig(),
+          enable_global_memory=enable_global_memory,
         )
 
       self.llm_wrapper = LLMWrapper(
@@ -81,7 +90,16 @@ class StreamingStudio:
         memory_manager=memory_manager,
       )
 
-    self.database = database or CommentDatabase()
+    # 数据库：全局记忆关闭时使用内存数据库
+    if database is not None:
+      self.database = database
+    elif enable_global_memory:
+      self.database = CommentDatabase()
+    else:
+      self.database = CommentDatabase(db_path=":memory:")
+
+    # 当前会话 ID
+    self._session_id: Optional[str] = None
 
     # 从 config 加载行为参数
     self.recent_comments_limit = self.config.recent_comments_limit
@@ -198,6 +216,15 @@ class StreamingStudio:
 
     self._running = True
 
+    # 生成会话 ID
+    self._session_id = str(uuid.uuid4())
+    self.database.create_session(self._session_id, self._persona)
+
+    # 将 session_id 传递给记忆管理器
+    memory_mgr = self.llm_wrapper.memory_manager
+    if memory_mgr is not None:
+      memory_mgr.session_id = self._session_id
+
     # 启动记忆定时任务
     await self.llm_wrapper.start_memory()
 
@@ -206,6 +233,11 @@ class StreamingStudio:
   async def stop(self) -> None:
     """停止直播间"""
     self._running = False
+
+    # 结束会话记录
+    if self._session_id:
+      self.database.end_session(self._session_id)
+      self._session_id = None
 
     # 停止记忆定时任务
     await self.llm_wrapper.stop_memory()

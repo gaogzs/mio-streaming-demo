@@ -69,11 +69,21 @@ class AutoViewer:
     self._running = False
     self._task: Optional[asyncio.Task] = None
     self._response_cb: Optional[Callable] = None
+    self._comment_callbacks: list[Callable[[Comment], None]] = []
 
   @property
   def is_running(self) -> bool:
     """是否正在运行"""
     return self._running
+
+  def on_comment(self, callback: Callable[[Comment], None]) -> None:
+    """注册弹幕生成回调（供 UI 显示用）"""
+    self._comment_callbacks.append(callback)
+
+  def remove_comment_callback(self, callback: Callable[[Comment], None]) -> None:
+    """移除弹幕生成回调"""
+    if callback in self._comment_callbacks:
+      self._comment_callbacks.remove(callback)
 
   async def start(self) -> None:
     """启动自动观众：注册回调 + 启动生成循环"""
@@ -163,6 +173,11 @@ class AutoViewer:
           content=line,
         )
         self.studio.send_comment(comment)
+        for cb in self._comment_callbacks:
+          try:
+            cb(comment)
+          except Exception as e:
+            logger.debug("弹幕回调错误: %s", e)
         await asyncio.sleep(random.uniform(0.3, 1.0))
 
     except Exception as e:

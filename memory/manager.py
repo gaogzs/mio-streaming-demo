@@ -11,7 +11,7 @@ from typing import Optional
 from langchain_core.language_models import BaseChatModel
 from langchain_huggingface import HuggingFaceEmbeddings
 
-from .config import MemoryConfig
+from .config import MemoryConfig, EmbeddingConfig
 from .store import VectorStore
 from .archive import MemoryArchive
 from .layers.active import ActiveLayer
@@ -39,6 +39,7 @@ class MemoryManager:
     persona: str,
     config: MemoryConfig = MemoryConfig(),
     summary_model: Optional[BaseChatModel] = None,
+    enable_global_memory: bool = False,
   ):
     """
     初始化记忆管理器
@@ -47,18 +48,34 @@ class MemoryManager:
       persona: 角色名称
       config: 记忆系统总配置
       summary_model: 用于总结的小 LLM（默认使用 ModelProvider.remote_small()）
+      enable_global_memory: 是否开启全局记忆（持久化到文件）
     """
+    self._enable_global_memory = enable_global_memory
+
+    # 根据全局记忆开关决定持久化策略
+    if enable_global_memory:
+      embedding_config = config.embedding
+    else:
+      # 纯内存模式：persist_directory=None → Chroma EphemeralClient
+      embedding_config = EmbeddingConfig(
+        model_name=config.embedding.model_name,
+        persist_directory=None,
+      )
+
     # 创建共享 embeddings（避免重复加载模型）
     embeddings = HuggingFaceEmbeddings(
-      model_name=config.embedding.model_name,
+      model_name=embedding_config.model_name,
     )
 
-    # 初始化归档器
-    self._archive = MemoryArchive(persona)
+    # 初始化归档器（纯内存模式下禁用）
+    self._archive = MemoryArchive(
+      persona,
+      enabled=enable_global_memory,
+    )
 
     # 初始化四层
     self._temporary = TemporaryLayer(
-      VectorStore("temporary", config.embedding, embeddings=embeddings),
+      VectorStore("temporary", embedding_config, embeddings=embeddings),
       self._archive,
       config.temporary,
     )
@@ -67,15 +84,18 @@ class MemoryManager:
       on_overflow=self._temporary.add,
     )
     self._summary_layer = SummaryLayer(
-      VectorStore("summary", config.embedding, embeddings=embeddings),
+      VectorStore("summary", embedding_config, embeddings=embeddings),
       self._archive,
       config.summary,
     )
     self._static = StaticLayer(
-      VectorStore("static", config.embedding, embeddings=embeddings),
+      VectorStore("static", embedding_config, embeddings=embeddings),
       persona=persona,
     )
     self._static.load()
+
+    # 当前会话 ID（由 studio 在 start() 时设置）
+    self._session_id: Optional[str] = None
 
     # 跨层检索器
     self._retriever = MemoryRetriever(
@@ -96,6 +116,19 @@ class MemoryManager:
 
     # 近期交互缓冲（供定时汇总使用）
     self._recent_interactions: list[tuple[str, str, datetime]] = []
+
+  @property
+  def session_id(self) -> Optional[str]:
+    """当前直播会话 ID"""
+    return self._session_id
+
+  @session_id.setter
+  def session_id(self, value: Optional[str]) -> None:
+    """设置当前直播会话 ID（同时传递给各层）"""
+    self._session_id = value
+    self._temporary.session_id = value
+    self._summary_layer.session_id = value
+    self._retriever.session_id = value
 
   def _get_summary_model(self) -> BaseChatModel:
     """

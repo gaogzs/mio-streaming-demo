@@ -44,6 +44,7 @@ class TemporaryLayer:
     self._store = vector_store
     self._archive = archive
     self._config = config or TemporaryConfig()
+    self.session_id: Optional[str] = None
 
   def add(self, content: str, timestamp: Optional[datetime] = None) -> str:
     """
@@ -59,15 +60,19 @@ class TemporaryLayer:
     memory_id = str(uuid.uuid4())
     ts = timestamp or datetime.now()
 
+    metadata = {
+      "id": memory_id,
+      "layer": "temporary",
+      "timestamp": ts.strftime("%Y-%m-%d %H:%M:%S"),
+      "significance": initial_significance(),
+    }
+    if self.session_id is not None:
+      metadata["session_id"] = self.session_id
+
     self._store.add(
       doc_id=memory_id,
       content=content,
-      metadata={
-        "id": memory_id,
-        "layer": "temporary",
-        "timestamp": ts.strftime("%Y-%m-%d %H:%M:%S"),
-        "significance": initial_significance(),
-      },
+      metadata=metadata,
     )
     return memory_id
 

@@ -27,6 +27,7 @@ def run(
   model_name: Optional[str] = None,
   persona: str = "karin",
   port: int = 8080,
+  enable_global_memory: bool = False,
 ) -> None:
   """
   启动调试控制台
@@ -36,6 +37,7 @@ def run(
     model_name: 模型名称
     persona: 角色名称
     port: 监听端口
+    enable_global_memory: 是否开启全局记忆（持久化到文件）
   """
   # 初始化直播间
   studio = StreamingStudio(
@@ -43,6 +45,7 @@ def run(
     model_type=model_type,
     model_name=model_name,
     enable_memory=True,
+    enable_global_memory=enable_global_memory,
   )
   studio.enable_streaming = True
   collector = StateCollector(studio)

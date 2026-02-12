@@ -59,6 +59,7 @@ def format_active_memories(entries: list[MemoryEntry]) -> str:
 def format_retrieved_memories(
   entries: list[MemoryEntry],
   now: Optional[datetime] = None,
+  current_session_id: Optional[str] = None,
 ) -> str:
   """
   格式化跨层 RAG 检索结果
@@ -72,9 +73,14 @@ def format_retrieved_memories(
   - summary: 【25分前的记忆】
   - static: 使用 category 前缀（已在 StaticLayer.retrieve 中处理）
 
+  跨会话标注：
+  - 如果 current_session_id 有值，且记忆的 session_id 与之不同，
+    添加【来自之前的直播】标注
+
   Args:
     entries: 跨层检索结果
     now: 当前时间（默认 datetime.now()）
+    current_session_id: 当前直播会话 ID（用于跨会话标注）
 
   Returns:
     格式化文本，无结果时返回空字符串
@@ -94,12 +100,19 @@ def format_retrieved_memories(
 
   lines = ["【相关回忆】"]
   for entry in sorted_entries:
+    # 检查是否来自之前的直播
+    cross_session_prefix = ""
+    if current_session_id is not None and entry.metadata:
+      mem_session = entry.metadata.get("session_id")
+      if mem_session is not None and mem_session != current_session_id:
+        cross_session_prefix = "【来自之前的直播】"
+
     if entry.layer == "static":
       # static 层已带 category 前缀
-      lines.append(f"- {entry.content}")
+      lines.append(f"- {cross_session_prefix}{entry.content}")
     else:
       # temporary / summary 层加相对时间前缀
       rel_time = _relative_time(entry.timestamp, now)
-      lines.append(f"- 【{rel_time}的记忆】{entry.content}")
+      lines.append(f"- {cross_session_prefix}【{rel_time}的记忆】{entry.content}")
 
   return "\n".join(lines)

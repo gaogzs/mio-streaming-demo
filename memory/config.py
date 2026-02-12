@@ -4,6 +4,7 @@
 """
 
 from dataclasses import dataclass
+from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -52,7 +53,7 @@ class RetrievalConfig:
 class EmbeddingConfig:
   """嵌入模型配置"""
   model_name: str = "BAAI/bge-small-zh-v1.5"
-  persist_directory: str = "data/memory_store"
+  persist_directory: Optional[str] = "data/memory_store"
 
 
 # 静态记忆类别定义：category -> 检索时添加的前缀

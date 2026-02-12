@@ -272,9 +272,22 @@ def create_chat_page(studio: StreamingStudio) -> None:
   callback_ref["chunk_fn"] = on_chunk
   studio.on_response_chunk(on_chunk)
 
+  # ── 自动观众弹幕显示回调 ──
+
+  def on_auto_comment(comment: Comment):
+    """自动观众弹幕 → 显示到右栏"""
+    _add_comment_bubble(
+      comment.nickname,
+      comment.content,
+      comment.timestamp.strftime("%H:%M:%S"),
+    )
+
+  auto_viewer.on_comment(on_auto_comment)
+
   # ── 清理 ──
 
   def cleanup():
+    auto_viewer.remove_comment_callback(on_auto_comment)
     if auto_viewer.is_running:
       import asyncio
       asyncio.create_task(auto_viewer.stop())

@@ -20,14 +20,22 @@ class MemoryArchive:
   归档文件路径：personas/{persona}/archived_memories/archive.json
   """
 
-  def __init__(self, persona: str, personas_dir: Optional[Path] = None):
+  def __init__(
+    self,
+    persona: str,
+    personas_dir: Optional[Path] = None,
+    enabled: bool = True,
+  ):
     """
     初始化归档器
 
     Args:
       persona: 角色名称
       personas_dir: personas 根目录，默认为项目根目录下的 personas/
+      enabled: 是否启用归档（关闭时所有操作为 no-op）
     """
+    self._enabled = enabled
+
     if personas_dir is None:
       # 从 memory/ 向上找到项目根目录
       project_root = Path(__file__).parent.parent
@@ -52,6 +60,9 @@ class MemoryArchive:
       layer: 来源层级
       metadata: 原始元数据
     """
+    if not self._enabled:
+      return
+
     entry = {
       "id": memory_id,
       "content": content,
@@ -75,7 +86,7 @@ class MemoryArchive:
     Args:
       memories: 记忆字典列表，每个须含 id, content, layer, metadata
     """
-    if not memories:
+    if not self._enabled or not memories:
       return
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

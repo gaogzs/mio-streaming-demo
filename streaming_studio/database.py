@@ -18,25 +18,41 @@ class CommentDatabase:
   使用 SQLite 存储弹幕和主播回复
   """
 
-  def __init__(self, db_path: Optional[Path] = None):
+  def __init__(self, db_path: Optional[str] = None):
     """
     初始化数据库
 
     Args:
-      db_path: 数据库文件路径，默认为项目根目录下的 data/comments.db
+      db_path: 数据库路径。
+        - None: 默认文件路径 data/comments.db
+        - ":memory:": 纯内存数据库（进程结束即销毁）
+        - 其他字符串: 指定文件路径
     """
+    self._in_memory = (db_path == ":memory:")
+
     if db_path is None:
       project_root = Path(__file__).parent.parent
       data_dir = project_root / "data"
       data_dir.mkdir(exist_ok=True)
-      db_path = data_dir / "comments.db"
+      db_path = str(data_dir / "comments.db")
 
-    self.db_path = Path(db_path)
+    self._db_path = db_path
+
+    # 内存模式需要保持单一连接（关闭即销毁）
+    if self._in_memory:
+      self._shared_conn = sqlite3.connect(
+        ":memory:", check_same_thread=False,
+      )
+    else:
+      self._shared_conn = None
+
     self._init_database()
 
   def _get_connection(self) -> sqlite3.Connection:
     """获取数据库连接"""
-    return sqlite3.connect(str(self.db_path))
+    if self._shared_conn is not None:
+      return self._shared_conn
+    return sqlite3.connect(self._db_path)
 
   def _init_database(self) -> None:
     """初始化数据库表"""
@@ -61,6 +77,16 @@ class CommentDatabase:
           content TEXT NOT NULL,
           reply_to TEXT NOT NULL,
           timestamp TEXT NOT NULL
+        )
+      """)
+
+      # 创建直播会话表
+      cursor.execute("""
+        CREATE TABLE IF NOT EXISTS streaming_sessions (
+          session_id TEXT PRIMARY KEY,
+          persona TEXT NOT NULL,
+          start_time TEXT NOT NULL,
+          end_time TEXT
         )
       """)
 
@@ -232,3 +258,41 @@ class CommentDatabase:
       cursor = conn.cursor()
       cursor.execute("SELECT COUNT(*) FROM responses")
       return cursor.fetchone()[0]
+
+  def create_session(
+    self,
+    session_id: str,
+    persona: str,
+  ) -> None:
+    """
+    创建直播会话记录（开播时调用）
+
+    Args:
+      session_id: 会话 ID
+      persona: 角色名称
+    """
+    with self._get_connection() as conn:
+      cursor = conn.cursor()
+      cursor.execute(
+        """
+        INSERT OR REPLACE INTO streaming_sessions
+          (session_id, persona, start_time) VALUES (?, ?, ?)
+        """,
+        (session_id, persona, datetime.now().isoformat()),
+      )
+      conn.commit()
+
+  def end_session(self, session_id: str) -> None:
+    """
+    结束直播会话（下播时调用）
+
+    Args:
+      session_id: 会话 ID
+    """
+    with self._get_connection() as conn:
+      cursor = conn.cursor()
+      cursor.execute(
+        "UPDATE streaming_sessions SET end_time = ? WHERE session_id = ?",
+        (datetime.now().isoformat(), session_id),
+      )
+      conn.commit()

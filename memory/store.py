@@ -45,11 +45,14 @@ class VectorStore:
         model_name=config.model_name,
       )
 
-    self._store = Chroma(
-      collection_name=collection_name,
-      embedding_function=self._embeddings,
-      persist_directory=config.persist_directory,
-    )
+    chroma_kwargs: dict = {
+      "collection_name": collection_name,
+      "embedding_function": self._embeddings,
+    }
+    if config.persist_directory is not None:
+      chroma_kwargs["persist_directory"] = config.persist_directory
+
+    self._store = Chroma(**chroma_kwargs)
 
   @property
   def embeddings(self) -> HuggingFaceEmbeddings:
