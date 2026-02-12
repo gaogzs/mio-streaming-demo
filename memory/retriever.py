@@ -1,9 +1,10 @@
 """
 跨层记忆检索器
 支持两种检索模式：per-layer quota / weighted merge
+支持多查询（逐条弹幕 RAG + 去重）
 """
 
-from typing import Optional
+from typing import Optional, Union
 
 from langchain_core.runnables import RunnableLambda
 
@@ -16,6 +17,27 @@ from .layers.summary import SummaryLayer
 from .layers.static import StaticLayer
 
 
+def _dedup_entries(entries: list[MemoryEntry], top_k: int) -> list[MemoryEntry]:
+  """
+  按 ID 去重，保留每条记忆的最高分，取 top_k
+
+  Args:
+    entries: 可能包含重复 ID 的记忆列表
+    top_k: 最终保留数量
+
+  Returns:
+    去重后按 score 排序的 top_k 条记忆
+  """
+  best: dict[str, MemoryEntry] = {}
+  for entry in entries:
+    existing = best.get(entry.id)
+    if existing is None or entry.score < existing.score:
+      # Chroma score 越小越相似
+      best[entry.id] = entry
+  sorted_entries = sorted(best.values(), key=lambda e: e.score)
+  return sorted_entries[:top_k]
+
+
 class MemoryRetriever:
   """
   跨层记忆检索器
@@ -26,6 +48,8 @@ class MemoryRetriever:
   支持两种模式（通过 config.retrieval.mode 切换）：
   - "quota": 每层分配固定取回数量
   - "weighted": 所有 RAG 层合并取回，按层级系数加权后重排
+
+  支持多查询输入：逐条查询 + 按 ID 去重。
   """
 
   def __init__(
@@ -53,19 +77,26 @@ class MemoryRetriever:
     self._config = config or RetrievalConfig()
     self.session_id: Optional[str] = None
 
-  def retrieve(self, query: str) -> tuple[str, str]:
+  def retrieve(self, query: Union[str, list[str]]) -> tuple[str, str]:
     """
     执行跨层检索
 
     Args:
-      query: 查询文本（通常是用户最新输入）
+      query: 查询文本，支持单条字符串或多条列表。
+        多条时逐条检索 + 按 ID 去重，语义匹配更精准。
 
     Returns:
       (active_text, rag_text) 元组：
         active_text: active 层格式化文本（时序直接注入）
         rag_text: RAG 层格式化文本（temporary + summary + static）
     """
-    # active 层：全量直接取出
+    # 标准化为列表
+    queries = [query] if isinstance(query, str) else query
+    queries = [q for q in queries if q.strip()]
+    if not queries:
+      queries = [""]
+
+    # active 层：全量直接取出（不走 RAG）
     active_memories = self._active.get_all()
     active_entries = [
       MemoryEntry(
@@ -80,9 +111,9 @@ class MemoryRetriever:
 
     # RAG 层检索
     if self._config.mode == "weighted":
-      rag_entries = self._retrieve_weighted(query)
+      rag_entries = self._retrieve_weighted(queries)
     else:
-      rag_entries = self._retrieve_quota(query)
+      rag_entries = self._retrieve_quota(queries)
 
     rag_text = format_retrieved_memories(
       rag_entries,
@@ -91,32 +122,49 @@ class MemoryRetriever:
 
     return active_text, rag_text
 
-  def _retrieve_quota(self, query: str) -> list[MemoryEntry]:
-    """per-layer quota 模式：每层独立检索固定数量"""
+  def _retrieve_quota(self, queries: list[str]) -> list[MemoryEntry]:
+    """
+    per-layer quota 模式：每层逐条查询，去重后取 quota 数量
+
+    Args:
+      queries: 查询文本列表
+    """
     entries = []
 
     if self._config.quota_temporary > 0:
-      entries.extend(
-        self._temporary.retrieve(query, top_k=self._config.quota_temporary)
-      )
+      all_temp = []
+      for q in queries:
+        all_temp.extend(
+          self._temporary.retrieve(q, top_k=self._config.quota_temporary)
+        )
+      entries.extend(_dedup_entries(all_temp, self._config.quota_temporary))
 
     if self._config.quota_summary > 0:
-      entries.extend(
-        self._summary.retrieve(query, top_k=self._config.quota_summary)
-      )
+      all_sum = []
+      for q in queries:
+        all_sum.extend(
+          self._summary.retrieve(q, top_k=self._config.quota_summary)
+        )
+      entries.extend(_dedup_entries(all_sum, self._config.quota_summary))
 
     if self._config.quota_static > 0:
-      entries.extend(
-        self._static.retrieve(query, top_k=self._config.quota_static)
-      )
+      all_stat = []
+      for q in queries:
+        all_stat.extend(
+          self._static.retrieve(q, top_k=self._config.quota_static)
+        )
+      entries.extend(_dedup_entries(all_stat, self._config.quota_static))
 
     return entries
 
-  def _retrieve_weighted(self, query: str) -> list[MemoryEntry]:
+  def _retrieve_weighted(self, queries: list[str]) -> list[MemoryEntry]:
     """
     weighted 模式：所有层合并取回，按层级系数加权后重排
 
     多取回 overfetch_multiplier 倍的结果，加权后取 top-k。
+
+    Args:
+      queries: 查询文本列表
     """
     total_quota = (
       self._config.quota_temporary
@@ -129,15 +177,17 @@ class MemoryRetriever:
     per_layer = max(1, overfetch // 3)
     all_entries = []
 
-    all_entries.extend(
-      self._temporary.retrieve(query, top_k=per_layer)
-    )
-    all_entries.extend(
-      self._summary.retrieve(query, top_k=per_layer)
-    )
-    all_entries.extend(
-      self._static.retrieve(query, top_k=per_layer)
-    )
+    for q in queries:
+      all_entries.extend(self._temporary.retrieve(q, top_k=per_layer))
+      all_entries.extend(self._summary.retrieve(q, top_k=per_layer))
+      all_entries.extend(self._static.retrieve(q, top_k=per_layer))
+
+    # 按 ID 去重（保留最佳 score）
+    best: dict[str, MemoryEntry] = {}
+    for entry in all_entries:
+      existing = best.get(entry.id)
+      if existing is None or entry.score < existing.score:
+        best[entry.id] = entry
 
     # 加权打分
     weight_map = {
@@ -147,10 +197,9 @@ class MemoryRetriever:
     }
 
     weighted = []
-    for entry in all_entries:
+    for entry in best.values():
       w = weight_map.get(entry.layer, 1.0)
       # Chroma 返回的 score 越小越相似，加权时取倒数使大的更好
-      # 这里简单地用 weight / (1 + score) 作为加权分
       weighted_score = w / (1.0 + entry.score)
       weighted.append((entry, weighted_score))
 

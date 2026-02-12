@@ -6,7 +6,7 @@
 import asyncio
 import logging
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Union
 
 from langchain_core.language_models import BaseChatModel
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -142,12 +142,13 @@ class MemoryManager:
       self._summary_model = ModelProvider.remote_small()
     return self._summary_model
 
-  def retrieve(self, query: str) -> tuple[str, str]:
+  def retrieve(self, query: Union[str, list[str]]) -> tuple[str, str]:
     """
     执行跨层记忆检索
 
     Args:
-      query: 查询文本（通常是用户最新输入）
+      query: 查询文本，支持单条字符串或多条列表。
+        多条时逐条检索 + 按 ID 去重，语义匹配更精准。
 
     Returns:
       (active_text, rag_text) 元组

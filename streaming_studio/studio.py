@@ -422,8 +422,14 @@ class StreamingStudio:
     prompt = self._format_comments_for_prompt(old_comments, new_comments)
     self._last_prompt = prompt
 
+    # 逐条弹幕内容作为 RAG 查询（语义更精准）
+    all_comments = old_comments + new_comments
+    rag_queries = [c.content for c in all_comments if c.content.strip()]
+
     try:
-      content = await self.llm_wrapper.achat(prompt, save_history=False)
+      content = await self.llm_wrapper.achat(
+        prompt, save_history=False, rag_queries=rag_queries,
+      )
     except Exception as e:
       print(f"LLM 调用错误: {e}")
       return None
@@ -449,12 +455,18 @@ class StreamingStudio:
     prompt = self._format_comments_for_prompt(old_comments, new_comments)
     self._last_prompt = prompt
 
+    # 逐条弹幕内容作为 RAG 查询（语义更精准）
+    all_comments = old_comments + new_comments
+    rag_queries = [c.content for c in all_comments if c.content.strip()]
+
     reply_ids = tuple(c.id for c in new_comments)
     response_id = str(uuid.uuid4())
     accumulated = ""
 
     try:
-      async for chunk in self.llm_wrapper.achat_stream(prompt, save_history=False):
+      async for chunk in self.llm_wrapper.achat_stream(
+        prompt, save_history=False, rag_queries=rag_queries,
+      ):
         accumulated += chunk
         rc = ResponseChunk(
           response_id=response_id,
