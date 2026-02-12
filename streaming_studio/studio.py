@@ -30,7 +30,7 @@ class StreamingStudio:
 
   双轨制触发机制：
   - 定时器：每隔 min_interval~max_interval 秒随机触发一次
-  - 弹幕加速：每条新弹幕缩短等待时间 1 秒
+  - 弹幕加速：每条新弹幕缩短等待时间（可配置）
   """
 
   def __init__(
@@ -255,7 +255,7 @@ class StreamingStudio:
     主循环：双轨定时器
 
     - 每轮生成 remaining = random(min_interval, max_interval) 秒的等待时间
-    - 每收到一条新弹幕，remaining 减 1 秒（加速触发）
+    - 每收到一条新弹幕，remaining 减 comment_wait_reduction 秒（加速触发）
     - remaining 耗尽或自然超时后，收集弹幕并生成回复
     """
     while self._running:
@@ -272,7 +272,7 @@ class StreamingStudio:
             count = self._pending_comment_count
             self._pending_comment_count = 0
             self._comment_arrived.clear()
-            remaining = max(0.0, remaining - count)
+            remaining = max(0.0, remaining - count * self._config.comment_wait_reduction)
           except asyncio.TimeoutError:
             # 自然超时
             break

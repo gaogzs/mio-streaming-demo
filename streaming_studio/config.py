@@ -28,3 +28,6 @@ class StudioConfig:
 
   buffer_maxlen: int = 200
   """弹幕缓冲区最大容量（环形队列）"""
+
+  comment_wait_reduction: float = 0.1
+  """每条新弹幕减少的等待时间（秒）"""
