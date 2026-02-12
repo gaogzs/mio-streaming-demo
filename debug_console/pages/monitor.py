@@ -89,6 +89,13 @@ def _build_memory_card() -> dict:
     ui.separator()
     ui.label("Active 层内容").classes("font-bold text-sm")
     refs["active_list"] = ui.column().classes("gap-0 max-h-[200px] overflow-auto")
+    ui.separator()
+    with ui.expansion("Temporary 层内容", icon="schedule").classes("w-full"):
+      refs["temporary_list"] = ui.column().classes("gap-0 max-h-[200px] overflow-auto")
+    with ui.expansion("Summary 层内容", icon="summarize").classes("w-full"):
+      refs["summary_list"] = ui.column().classes("gap-0 max-h-[200px] overflow-auto")
+    with ui.expansion("Static 层内容", icon="push_pin").classes("w-full"):
+      refs["static_list"] = ui.column().classes("gap-0 max-h-[200px] overflow-auto")
   return refs
 
 
@@ -190,6 +197,43 @@ def _update_memory_card(refs: dict, state: dict) -> None:
       ui.label(
         f"[{m['timestamp']}] {m['content']}"
       ).classes("text-xs text-gray-600")
+
+  # 更新 temporary 层内容列表
+  temporary_list = refs["temporary_list"]
+  temporary_list.clear()
+  with temporary_list:
+    for m in state.get("temporary_memories", []):
+      sig = m.get("significance", 0)
+      ui.label(
+        f"[sig:{sig:.2f}] {m['content']}"
+      ).classes("text-xs text-gray-600")
+    if not state.get("temporary_memories"):
+      ui.label("（空）").classes("text-xs text-gray-400 italic")
+
+  # 更新 summary 层内容列表
+  summary_list = refs["summary_list"]
+  summary_list.clear()
+  with summary_list:
+    for m in state.get("summary_memories", []):
+      sig = m.get("significance", 0)
+      ui.label(
+        f"[sig:{sig:.2f}] {m['content']}"
+      ).classes("text-xs text-gray-600")
+    if not state.get("summary_memories"):
+      ui.label("（空）").classes("text-xs text-gray-400 italic")
+
+  # 更新 static 层内容列表
+  static_list = refs["static_list"]
+  static_list.clear()
+  with static_list:
+    for m in state.get("static_memories", []):
+      category = m.get("category", "")
+      prefix = f"[{category}] " if category else ""
+      ui.label(
+        f"{prefix}{m['content']}"
+      ).classes("text-xs text-gray-600")
+    if not state.get("static_memories"):
+      ui.label("（空）").classes("text-xs text-gray-400 italic")
 
 
 def _update_llm_card(refs: dict, state: dict) -> None:

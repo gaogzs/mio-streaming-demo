@@ -379,7 +379,7 @@ class StreamingStudio:
     self._last_prompt = prompt
 
     try:
-      content = await self.llm_wrapper.achat(prompt)
+      content = await self.llm_wrapper.achat(prompt, save_history=False)
     except Exception as e:
       print(f"LLM 调用错误: {e}")
       return None
@@ -410,7 +410,7 @@ class StreamingStudio:
     accumulated = ""
 
     try:
-      async for chunk in self.llm_wrapper.achat_stream(prompt):
+      async for chunk in self.llm_wrapper.achat_stream(prompt, save_history=False):
         accumulated += chunk
         rc = ResponseChunk(
           response_id=response_id,
@@ -467,20 +467,18 @@ class StreamingStudio:
     """
     recent = list(self._comment_buffer)[-10:]
 
-    # 构造完整 prompt 预览（包含系统提示词 + 用户消息）
+    # 构造完整 prompt 预览（系统提示词 + 记忆上下文 + 当前弹幕）
+    # 注意：studio 使用 save_history=False，不积累对话历史，
+    # 上下文由记忆系统通过 extra_context 注入到系统提示词中。
     full_prompt = None
     if self._last_prompt:
       system_prompt = self.llm_wrapper.pipeline.system_prompt
-      history = self.llm_wrapper.history
+      extra_context = self.llm_wrapper.last_extra_context
 
       parts = [f"=== 系统提示词 ===\n{system_prompt}\n"]
 
-      if history:
-        parts.append("=== 对话历史 ===")
-        for user_msg, ai_msg in history[-3:]:  # 只显示最近 3 轮
-          parts.append(f"用户: {user_msg}")
-          parts.append(f"助手: {ai_msg}")
-        parts.append("")
+      if extra_context:
+        parts.append(f"=== 记忆上下文（注入到系统提示词末尾）===\n{extra_context}\n")
 
       parts.append(f"=== 当前用户消息 ===\n{self._last_prompt}")
       full_prompt = "\n".join(parts)

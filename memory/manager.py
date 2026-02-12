@@ -210,6 +210,54 @@ class MemoryManager:
       包含记忆系统当前状态的字典
     """
     active_memories = self._active.get_all()
+
+    # temporary 层内容
+    temporary_memories = []
+    try:
+      temp_data = self._temporary._store.get_all()
+      for content, meta in zip(
+        temp_data.get("documents", []),
+        temp_data.get("metadatas", []),
+      ):
+        temporary_memories.append({
+          "content": content or "",
+          "timestamp": (meta or {}).get("timestamp", ""),
+          "significance": (meta or {}).get("significance", 0),
+        })
+    except Exception as e:
+      logger.debug("读取 temporary 层记忆失败: %s", e)
+
+    # summary 层内容
+    summary_memories = []
+    try:
+      sum_data = self._summary_layer._store.get_all()
+      for content, meta in zip(
+        sum_data.get("documents", []),
+        sum_data.get("metadatas", []),
+      ):
+        summary_memories.append({
+          "content": content or "",
+          "timestamp": (meta or {}).get("timestamp", ""),
+          "significance": (meta or {}).get("significance", 0),
+        })
+    except Exception as e:
+      logger.debug("读取 summary 层记忆失败: %s", e)
+
+    # static 层内容
+    static_memories = []
+    try:
+      stat_data = self._static._store.get_all()
+      for content, meta in zip(
+        stat_data.get("documents", []),
+        stat_data.get("metadatas", []),
+      ):
+        static_memories.append({
+          "content": content or "",
+          "category": (meta or {}).get("category", ""),
+        })
+    except Exception as e:
+      logger.debug("读取 static 层记忆失败: %s", e)
+
     return {
       "active_count": self._active.count(),
       "active_capacity": self._active._config.capacity,
@@ -218,8 +266,11 @@ class MemoryManager:
         for m in active_memories
       ],
       "temporary_count": self._temporary.count(),
+      "temporary_memories": temporary_memories,
       "summary_count": self._summary_layer.count(),
+      "summary_memories": summary_memories,
       "static_count": self._static.count(),
+      "static_memories": static_memories,
       "recent_interactions": len(self._recent_interactions),
       "summary_task_running": self._summary_task is not None and not self._summary_task.done(),
       "cleanup_task_running": self._cleanup_task is not None and not self._cleanup_task.done(),

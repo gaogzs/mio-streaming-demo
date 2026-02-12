@@ -73,6 +73,9 @@ class LLMWrapper:
     # 对话历史
     self._history: list[tuple[str, str]] = []
 
+    # 最近一次使用的记忆上下文（供调试监控）
+    self._last_extra_context: str = ""
+
     # 后台任务引用集合（防止被 GC 回收）
     self._background_tasks: set[asyncio.Task] = set()
 
@@ -80,6 +83,11 @@ class LLMWrapper:
   def has_memory(self) -> bool:
     """是否启用了记忆功能"""
     return self._memory is not None
+
+  @property
+  def last_extra_context(self) -> str:
+    """最近一次使用的记忆上下文（供调试监控）"""
+    return self._last_extra_context
 
   async def start_memory(self) -> None:
     """启动记忆系统定时任务（需在 asyncio 上下文中调用）"""
@@ -128,6 +136,7 @@ class LLMWrapper:
       模型回复
     """
     extra_context = self._build_extra_context(user_input)
+    self._last_extra_context = extra_context
     response = self.pipeline.invoke(
       user_input, self._history, extra_context=extra_context,
     )
@@ -153,6 +162,7 @@ class LLMWrapper:
       模型回复
     """
     extra_context = self._build_extra_context(user_input)
+    self._last_extra_context = extra_context
     response = await self.pipeline.ainvoke(
       user_input, self._history, extra_context=extra_context,
     )
@@ -186,6 +196,7 @@ class LLMWrapper:
       模型输出的文本片段
     """
     extra_context = self._build_extra_context(user_input)
+    self._last_extra_context = extra_context
     full_response = ""
     completed = False
 
