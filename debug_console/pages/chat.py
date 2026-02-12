@@ -257,6 +257,7 @@ def create_chat_page(studio: StreamingStudio) -> None:
     else:
       content_label, card = streaming_bubbles[chunk.response_id]
       content_label.set_text(chunk.accumulated)
+      response_scroll.scroll_to(percent=1.0)
 
     if chunk.done:
       # 添加时间戳（与非流式气泡一致）

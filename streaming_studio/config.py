@@ -31,3 +31,6 @@ class StudioConfig:
 
   comment_wait_reduction: float = 0.1
   """每条新弹幕减少的等待时间（秒）"""
+
+  new_comment_context_ratio: float = 1.0
+  """实际送入模型的弹幕上限 = min(recent_comments_limit, 新弹幕数 * 此系数)"""

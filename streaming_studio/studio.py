@@ -311,6 +311,8 @@ class StreamingStudio:
     """
     从缓冲区收集最近弹幕，按上次回复时间分割为旧弹幕和新弹幕
 
+    实际弹幕上限 = min(recent_comments_limit, 新弹幕数 * new_comment_context_ratio)
+
     Returns:
       (old_comments, new_comments) 元组
       - old_comments: 上次回复之前的弹幕（背景参考）
@@ -323,6 +325,16 @@ class StreamingStudio:
 
     old = [c for c in recent if c.timestamp < self._last_reply_time]
     new = [c for c in recent if c.timestamp >= self._last_reply_time]
+
+    # 动态上限：根据新弹幕数量限制总弹幕数
+    dynamic_limit = max(1, int(len(new) * self.config.new_comment_context_ratio))
+    total_limit = min(self.recent_comments_limit, dynamic_limit)
+
+    # 新弹幕优先，剩余配额给旧弹幕
+    new = new[-total_limit:]
+    old_quota = max(0, total_limit - len(new))
+    old = old[-old_quota:] if old_quota > 0 else []
+
     return old, new
 
   @staticmethod
