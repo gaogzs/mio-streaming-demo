@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from ..config import STATIC_CATEGORY_PREFIXES
+from ..config import STATIC_CATEGORY_PREFIXES, STATIC_CATEGORY_DEFAULT_PREFIX
 from ..store import VectorStore
 from .base import MemoryEntry
 
@@ -146,8 +146,8 @@ class StaticLayer:
 
     for doc, score in results:
       category = doc.metadata.get("category", "")
-      prefix = STATIC_CATEGORY_PREFIXES.get(category, "")
-      prefixed_content = f"{prefix}{doc.page_content}" if prefix else doc.page_content
+      prefix = STATIC_CATEGORY_PREFIXES.get(category, STATIC_CATEGORY_DEFAULT_PREFIX)
+      prefixed_content = f"{prefix}{doc.page_content}"
 
       ts_str = doc.metadata.get("timestamp", "")
       try:

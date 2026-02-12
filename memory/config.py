@@ -64,6 +64,7 @@ STATIC_CATEGORY_PREFIXES = {
   "personality": "【我对此的本能感觉与反应】",
   "world": "【我所知道的相关知识】",
 }
+STATIC_CATEGORY_DEFAULT_PREFIX = "【关于我自己的回忆】"
 
 
 @dataclass(frozen=True)
