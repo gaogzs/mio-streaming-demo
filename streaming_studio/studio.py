@@ -41,6 +41,7 @@ class StreamingStudio:
     model_name: Optional[str] = None,
     enable_memory: bool = False,
     enable_global_memory: bool = False,
+    enable_topic_manager: bool = False,
     # 高级定制
     llm_wrapper: Optional[LLMWrapper] = None,
     database: Optional[CommentDatabase] = None,
@@ -55,6 +56,7 @@ class StreamingStudio:
       model_name: 模型名称（可选，使用默认值）
       enable_memory: 是否启用分层记忆系统
       enable_global_memory: 是否开启全局记忆（持久化到文件），需同时开启 enable_memory
+      enable_topic_manager: 是否启用话题管理器（追踪、分类和管理直播话题）
       llm_wrapper: 自定义 LLM 封装（高级用户，传入后忽略 persona/model_type/enable_memory）
       database: 自定义数据库（高级用户）
       config: 自定义行为配置（高级用户）
@@ -129,6 +131,18 @@ class StreamingStudio:
     self.enable_streaming: bool = False
     self._chunk_callbacks: list[Callable[[ResponseChunk], None]] = []
 
+    # 话题管理器
+    self._topic_manager = None
+    if enable_topic_manager:
+      from topic_manager import TopicManager
+      self._topic_manager = TopicManager(
+        persona=persona,
+        database=self.database,
+      )
+
+    # 后台任务引用（防止 GC 回收）
+    self._background_tasks: set[asyncio.Task] = set()
+
     # 运行状态
     self._running = False
     self._main_task: Optional[asyncio.Task] = None
@@ -149,6 +163,10 @@ class StreamingStudio:
     self._comment_buffer.append(comment)
     self._pending_comment_count += 1
     self._comment_arrived.set()
+
+    # 转发给话题管理器（非阻塞）
+    if self._topic_manager:
+      self._topic_manager.on_comment(comment)
 
   async def get_response(self, timeout: Optional[float] = None) -> Optional[StreamerResponse]:
     """
@@ -228,6 +246,10 @@ class StreamingStudio:
     # 启动记忆定时任务
     await self.llm_wrapper.start_memory()
 
+    # 启动话题管理器
+    if self._topic_manager:
+      await self._topic_manager.start()
+
     self._main_task = asyncio.create_task(self._main_loop())
 
   async def stop(self) -> None:
@@ -239,8 +261,16 @@ class StreamingStudio:
       self.database.end_session(self._session_id)
       self._session_id = None
 
+    # 停止话题管理器
+    if self._topic_manager:
+      await self._topic_manager.stop()
+
     # 停止记忆定时任务
     await self.llm_wrapper.stop_memory()
+
+    # 等待后台任务
+    if self._background_tasks:
+      await asyncio.gather(*self._background_tasks, return_exceptions=True)
 
     if self._main_task:
       self._main_task.cancel()
@@ -260,7 +290,15 @@ class StreamingStudio:
     """
     while self._running:
       try:
-        remaining = random.uniform(self.min_interval, self.max_interval)
+        # 动态等待时间（话题管理器建议 > 默认值）
+        if self._topic_manager and self._topic_manager.suggested_timing:
+          min_t, max_t = self._topic_manager.suggested_timing
+          if min_t > 0 and max_t >= min_t:
+            remaining = random.uniform(min_t, max_t)
+          else:
+            remaining = random.uniform(self.min_interval, self.max_interval)
+        else:
+          remaining = random.uniform(self.min_interval, self.max_interval)
 
         while remaining > 0:
           try:
@@ -300,6 +338,19 @@ class StreamingStudio:
               print(f"回调执行错误: {e}")
 
           self._last_reply_time = datetime.now()
+
+          # 回复后分析（fire-and-forget）
+          if self._topic_manager:
+            all_comments = old_comments + new_comments
+            task = asyncio.create_task(
+              self._topic_manager.post_reply(
+                self._last_prompt or "",
+                response.content,
+                all_comments,
+              )
+            )
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
 
       except asyncio.CancelledError:
         break
@@ -372,6 +423,7 @@ class StreamingStudio:
     self,
     old_comments: list[Comment],
     new_comments: list[Comment],
+    annotations: Optional[dict[str, str]] = None,
   ) -> str:
     """
     组合弹幕为 LLM 输入 prompt
@@ -379,19 +431,27 @@ class StreamingStudio:
     Args:
       old_comments: 上次回复前的弹幕
       new_comments: 上次回复后的新弹幕
+      annotations: 弹幕→话题标注映射（来自话题管理器）
 
     Returns:
       格式化后的 prompt 字符串
     """
     now = datetime.now()
+
+    def fmt(c: Comment) -> str:
+      base = self._format_comment(c, now)
+      if annotations and c.id in annotations:
+        return f"- [话题: {annotations[c.id]}] {base}"
+      return f"- {base}"
+
     parts = []
 
     if old_comments:
-      lines = [f"- {self._format_comment(c, now)}" for c in old_comments]
+      lines = [fmt(c) for c in old_comments]
       parts.append("【上次回复前的弹幕（背景参考）】\n" + "\n".join(lines))
 
     if new_comments:
-      lines = [f"- {self._format_comment(c, now)}" for c in new_comments]
+      lines = [fmt(c) for c in new_comments]
       parts.append("【上次回复后的新弹幕】\n" + "\n".join(lines))
     else:
       # 计算距离最近一条弹幕的沉默时长
@@ -419,7 +479,14 @@ class StreamingStudio:
     Returns:
       回复对象
     """
-    prompt = self._format_comments_for_prompt(old_comments, new_comments)
+    # 话题管理器：获取标注和上下文
+    annotations = None
+    topic_context = None
+    if self._topic_manager:
+      annotations = self._topic_manager.get_comment_annotations()
+      topic_context = self._topic_manager.format_context(old_comments, new_comments)
+
+    prompt = self._format_comments_for_prompt(old_comments, new_comments, annotations)
     self._last_prompt = prompt
 
     # 逐条弹幕内容作为 RAG 查询（语义更精准）
@@ -428,7 +495,8 @@ class StreamingStudio:
 
     try:
       content = await self.llm_wrapper.achat(
-        prompt, save_history=False, rag_queries=rag_queries,
+        prompt, save_history=False,
+        rag_queries=rag_queries, topic_context=topic_context,
       )
     except Exception as e:
       print(f"LLM 调用错误: {e}")
@@ -452,7 +520,14 @@ class StreamingStudio:
     Returns:
       完整回复对象（流结束后组装）
     """
-    prompt = self._format_comments_for_prompt(old_comments, new_comments)
+    # 话题管理器：获取标注和上下文
+    annotations = None
+    topic_context = None
+    if self._topic_manager:
+      annotations = self._topic_manager.get_comment_annotations()
+      topic_context = self._topic_manager.format_context(old_comments, new_comments)
+
+    prompt = self._format_comments_for_prompt(old_comments, new_comments, annotations)
     self._last_prompt = prompt
 
     # 逐条弹幕内容作为 RAG 查询（语义更精准）
@@ -465,7 +540,8 @@ class StreamingStudio:
 
     try:
       async for chunk in self.llm_wrapper.achat_stream(
-        prompt, save_history=False, rag_queries=rag_queries,
+        prompt, save_history=False,
+        rag_queries=rag_queries, topic_context=topic_context,
       ):
         accumulated += chunk
         rc = ResponseChunk(
@@ -564,7 +640,19 @@ class StreamingStudio:
       ],
       "total_comments": self.database.get_comment_count(),
       "total_responses": self.database.get_response_count(),
+      "topic_manager_enabled": self._topic_manager is not None,
     }
+
+  def topic_debug_state(self) -> Optional[dict]:
+    """
+    获取话题管理器的调试状态快照
+
+    Returns:
+      话题管理器状态字典，未启用时返回 None
+    """
+    if self._topic_manager is None:
+      return None
+    return self._topic_manager.debug_state()
 
   def get_stats(self) -> dict:
     """

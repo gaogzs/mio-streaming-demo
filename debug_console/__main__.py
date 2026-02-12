@@ -39,6 +39,10 @@ def main():
     "--global-memory", action="store_true", default=False,
     help="开启全局记忆（持久化到文件，默认关闭）",
   )
+  parser.add_argument(
+    "--topic-manager", action="store_true", default=False,
+    help="启用话题管理器（追踪和管理直播话题，默认关闭）",
+  )
 
   args = parser.parse_args()
 
@@ -49,6 +53,7 @@ def main():
       persona=args.persona,
       port=args.port,
       enable_global_memory=args.global_memory,
+      enable_topic_manager=args.topic_manager,
     )
   except KeyboardInterrupt:
     print("\n正在关闭...")

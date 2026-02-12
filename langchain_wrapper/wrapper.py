@@ -117,23 +117,30 @@ class LLMWrapper:
     self,
     user_input: str,
     rag_queries: Optional[list[str]] = None,
+    topic_context: Optional[str] = None,
   ) -> str:
     """
-    构建记忆上下文
+    构建额外上下文（记忆 + 话题）
 
     Args:
       user_input: 用户输入（默认也用作 RAG 查询）
       rag_queries: 自定义 RAG 查询列表（如逐条弹幕），
         传入时用此列表代替 user_input 进行 RAG 检索
+      topic_context: 话题上下文（来自话题管理器）
 
     Returns:
-      格式化的记忆文本（无记忆时返回空字符串）
+      格式化的额外上下文文本
     """
-    if self._memory is None:
-      return ""
-    query: Union[str, list[str]] = rag_queries if rag_queries else user_input
-    active_text, rag_text = self._memory.retrieve(query)
-    parts = [p for p in [active_text, rag_text] if p]
+    parts: list[str] = []
+
+    if self._memory is not None:
+      query: Union[str, list[str]] = rag_queries if rag_queries else user_input
+      active_text, rag_text = self._memory.retrieve(query)
+      parts = [p for p in [active_text, rag_text] if p]
+
+    if topic_context:
+      parts.append(topic_context)
+
     return "\n\n".join(parts)
 
   def chat(
@@ -141,6 +148,7 @@ class LLMWrapper:
     user_input: str,
     save_history: bool = True,
     rag_queries: Optional[list[str]] = None,
+    topic_context: Optional[str] = None,
   ) -> str:
     """
     同步聊天
@@ -149,11 +157,12 @@ class LLMWrapper:
       user_input: 用户输入
       save_history: 是否保存到历史记录
       rag_queries: 自定义 RAG 查询列表（逐条弹幕内容）
+      topic_context: 话题上下文（来自话题管理器）
 
     Returns:
       模型回复
     """
-    extra_context = self._build_extra_context(user_input, rag_queries)
+    extra_context = self._build_extra_context(user_input, rag_queries, topic_context)
     self._last_extra_context = extra_context
     response = self.pipeline.invoke(
       user_input, self._history, extra_context=extra_context,
@@ -173,6 +182,7 @@ class LLMWrapper:
     user_input: str,
     save_history: bool = True,
     rag_queries: Optional[list[str]] = None,
+    topic_context: Optional[str] = None,
   ) -> str:
     """
     异步聊天
@@ -181,11 +191,12 @@ class LLMWrapper:
       user_input: 用户输入
       save_history: 是否保存到历史记录
       rag_queries: 自定义 RAG 查询列表（逐条弹幕内容）
+      topic_context: 话题上下文（来自话题管理器）
 
     Returns:
       模型回复
     """
-    extra_context = self._build_extra_context(user_input, rag_queries)
+    extra_context = self._build_extra_context(user_input, rag_queries, topic_context)
     self._last_extra_context = extra_context
     response = await self.pipeline.ainvoke(
       user_input, self._history, extra_context=extra_context,
@@ -209,6 +220,7 @@ class LLMWrapper:
     user_input: str,
     save_history: bool = True,
     rag_queries: Optional[list[str]] = None,
+    topic_context: Optional[str] = None,
   ) -> AsyncIterator[str]:
     """
     异步流式聊天，逐 token yield
@@ -219,11 +231,12 @@ class LLMWrapper:
       user_input: 用户输入
       save_history: 是否保存到历史记录
       rag_queries: 自定义 RAG 查询列表（逐条弹幕内容）
+      topic_context: 话题上下文（来自话题管理器）
 
     Yields:
       模型输出的文本片段
     """
-    extra_context = self._build_extra_context(user_input, rag_queries)
+    extra_context = self._build_extra_context(user_input, rag_queries, topic_context)
     self._last_extra_context = extra_context
     full_response = ""
     completed = False

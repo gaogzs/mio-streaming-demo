@@ -42,8 +42,14 @@ class StateCollector:
     except Exception:
       memory_state = None
 
+    try:
+      topic_state = self._studio.topic_debug_state()
+    except Exception:
+      topic_state = None
+
     return {
       "studio": studio_state,
       "llm": llm_state,
       "memory": memory_state,
+      "topics": topic_state,
     }

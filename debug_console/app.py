@@ -28,6 +28,7 @@ def run(
   persona: str = "karin",
   port: int = 8080,
   enable_global_memory: bool = False,
+  enable_topic_manager: bool = False,
 ) -> None:
   """
   启动调试控制台
@@ -38,6 +39,7 @@ def run(
     persona: 角色名称
     port: 监听端口
     enable_global_memory: 是否开启全局记忆（持久化到文件）
+    enable_topic_manager: 是否启用话题管理器
   """
   # 初始化直播间
   studio = StreamingStudio(
@@ -46,6 +48,7 @@ def run(
     model_name=model_name,
     enable_memory=True,
     enable_global_memory=enable_global_memory,
+    enable_topic_manager=enable_topic_manager,
   )
   studio.enable_streaming = True
   collector = StateCollector(studio)

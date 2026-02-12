@@ -24,6 +24,7 @@ def create_monitor_page(collector: StateCollector) -> None:
       state = collector.snapshot()
       _update_studio_card(containers.get("studio"), state.get("studio"))
       _update_memory_card(containers.get("memory"), state.get("memory"))
+      _update_topic_card(containers.get("topics"), state.get("topics"))
       _update_llm_card(containers.get("llm"), state.get("llm"))
       _update_prompt_card(containers.get("prompt"), state.get("studio"))
     except Exception:
@@ -42,7 +43,10 @@ def create_monitor_page(collector: StateCollector) -> None:
     # 最近 prompt 展示
     containers["prompt"] = _build_prompt_card()
 
-    # 记忆系统（放在 prompt 下方）
+    # 话题管理器（放在 prompt 下方）
+    containers["topics"] = _build_topic_card()
+
+    # 记忆系统
     containers["memory"] = _build_memory_card()
 
   # 每 2 秒自动刷新
@@ -94,6 +98,22 @@ def _build_memory_card() -> dict:
       refs["summary_list"] = ui.column().classes("gap-0 max-h-[200px] overflow-auto")
     with ui.expansion("Static 层内容", icon="push_pin").classes("w-full"):
       refs["static_list"] = ui.column().classes("gap-0 max-h-[200px] overflow-auto")
+  return refs
+
+
+def _build_topic_card() -> dict:
+  """构建话题管理器卡片"""
+  refs = {}
+  with ui.card().classes("w-full"):
+    ui.label("话题管理器").classes("text-lg font-bold")
+    ui.separator()
+    with ui.column().classes("gap-1"):
+      refs["status"] = ui.label()
+      refs["stats"] = ui.label()
+      refs["timing"] = ui.label()
+    ui.separator()
+    ui.label("活跃话题").classes("font-bold text-sm")
+    refs["topic_list"] = ui.column().classes("gap-1 max-h-[300px] overflow-auto")
   return refs
 
 
@@ -232,6 +252,53 @@ def _update_memory_card(refs: dict, state: dict) -> None:
       ).classes("text-xs text-gray-600")
     if not state.get("static_memories"):
       ui.label("（空）").classes("text-xs text-gray-400 italic")
+
+
+def _update_topic_card(refs: dict, state: dict) -> None:
+  """更新话题管理器卡片"""
+  if not refs:
+    return
+
+  if state is None:
+    refs["status"].text = "话题管理器未启用"
+    refs["stats"].text = ""
+    refs["timing"].text = ""
+    return
+
+  status = "运行中" if state["running"] else "已停止"
+  refs["status"].text = f"状态: {status}  模式: {state['comment_mode']}"
+  refs["stats"].text = (
+    f"话题数: {state['topic_count']}  "
+    f"待分类弹幕: {state['pending_comments']}  "
+    f"后台任务: {state['background_tasks']}"
+  )
+
+  timing = state.get("suggested_timing")
+  if timing:
+    refs["timing"].text = f"动态等待: {timing[0]:.1f}s ~ {timing[1]:.1f}s"
+  else:
+    refs["timing"].text = "动态等待: 使用默认值"
+
+  # 更新话题列表
+  topic_list = refs["topic_list"]
+  topic_list.clear()
+  with topic_list:
+    topics = state.get("topics", [])
+    if not topics:
+      ui.label("（无话题）").classes("text-xs text-gray-400 italic")
+    for t in topics:
+      stale_mark = " [过期]" if t.get("stale") else ""
+      with ui.card().classes("w-full p-2").style("background: #f8f9fa"):
+        ui.label(
+          f"{t['topic_id']} (sig: {t['significance']:.2f}){stale_mark}"
+        ).classes("text-sm font-bold")
+        ui.label(f"进度: {t['progress']}").classes("text-xs text-gray-600")
+        if t.get("suggestion"):
+          ui.label(f"建议: {t['suggestion']}").classes("text-xs text-blue-600")
+        ui.label(
+          f"弹幕: {t['comment_count']}  用户: {t['user_count']}  "
+          f"创建: {t['created_at']}  更新: {t['updated_at']}"
+        ).classes("text-xs text-gray-400")
 
 
 def _update_llm_card(refs: dict, state: dict) -> None:
