@@ -55,7 +55,7 @@ prompt = loader.get_system_prompt("karin")
 ]
 ```
 
-支持的 category: `identity`, `personality`, `relationship`, `experience`, `world`
+支持的 category: `identity`, `personality`, `preference`, `hobby`, `skill`, `habit`, `daily`, `experience`, `relationship`, `dream`
 
 ## 谁使用 PersonaLoader
 
@@ -67,4 +67,4 @@ prompt = loader.get_system_prompt("karin")
 
 - [x] PersonaLoader 实现
 - [x] 3 个角色的 system_prompt.txt
-- [x] 3 个角色的 static_memories/identity.json
+- [x] 3 个角色的 static_memories/identity.json（每角色 22 条，覆盖多种 category）

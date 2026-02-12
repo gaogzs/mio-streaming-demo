@@ -35,17 +35,15 @@ def create_monitor_page(collector: StateCollector) -> None:
       ui.label("实时监控").classes("text-2xl font-bold")
       ui.button("手动刷新", on_click=refresh).props("flat dense")
 
-    # 上排：直播间 + 记忆系统
-    with ui.row().classes("w-full gap-4"):
-      containers["studio"] = _build_studio_card()
-      containers["memory"] = _build_memory_card()
-
-    # 下排：LLM 状态
-    with ui.row().classes("w-full gap-4"):
-      containers["llm"] = _build_llm_card()
+    # 直播间状态 + LLM 状态
+    containers["studio"] = _build_studio_card()
+    containers["llm"] = _build_llm_card()
 
     # 最近 prompt 展示
     containers["prompt"] = _build_prompt_card()
+
+    # 记忆系统（放在 prompt 下方）
+    containers["memory"] = _build_memory_card()
 
   # 每 2 秒自动刷新
   ui.timer(2.0, refresh)
@@ -58,7 +56,7 @@ def create_monitor_page(collector: StateCollector) -> None:
 def _build_studio_card() -> dict:
   """构建直播间状态卡片，返回可更新的组件引用"""
   refs = {}
-  with ui.card().classes("flex-1 min-w-[400px]"):
+  with ui.card().classes("w-full"):
     ui.label("直播间状态").classes("text-lg font-bold")
     ui.separator()
     with ui.column().classes("gap-1"):
@@ -77,7 +75,7 @@ def _build_studio_card() -> dict:
 def _build_memory_card() -> dict:
   """构建记忆系统卡片"""
   refs = {}
-  with ui.card().classes("flex-1 min-w-[400px]"):
+  with ui.card().classes("w-full"):
     ui.label("记忆系统").classes("text-lg font-bold")
     ui.separator()
     with ui.column().classes("gap-1"):
@@ -102,7 +100,7 @@ def _build_memory_card() -> dict:
 def _build_llm_card() -> dict:
   """构建 LLM 状态卡片"""
   refs = {}
-  with ui.card().classes("flex-1 min-w-[400px]"):
+  with ui.card().classes("w-full"):
     ui.label("LLM 状态").classes("text-lg font-bold")
     ui.separator()
     with ui.column().classes("gap-1"):

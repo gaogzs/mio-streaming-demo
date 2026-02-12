@@ -133,3 +133,4 @@ python -m connection.test_chatter_web
 - [x] Phase 9: 双轨制回复触发机制 (streaming_studio/)
 - [x] Phase 10: NiceGUI 调试控制台 (debug_console/)
 - [x] Phase 11: 全链路流式回复 + 模拟直播间左右分栏
+- [x] Phase 12: 监控面板排版优化 + 冷场应对策略 + 角色记忆扩充

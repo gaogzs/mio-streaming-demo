@@ -37,24 +37,27 @@ debug_console/          # 新顶层模块
 
 ### 页面 1：监控面板 (`/monitor`)
 
-#### 直播间状态卡片
+全部垂直排列（无左右并列），顺序为：
+
+#### 1. 直播间状态卡片
 - 运行状态、弹幕缓冲区大小 / 最大容量
 - 定时器参数（min_interval / max_interval）
 - 上次回复时间、待处理弹幕数
 - 最近弹幕列表（时间 + 用户 + 内容）
 
-#### 记忆系统卡片
-- 四层记忆条目数：active / temporary / summary / static
-- active 层容量进度条
-- active 层当前内容列表
-- 近期交互缓冲数量
-- 定时任务状态（汇总任务运行中/清理任务运行中）
-
-#### LLM 状态卡片
+#### 2. LLM 状态卡片
 - 模型类型、模型名称、角色
 - 对话历史长度
 - 后台任务数量
-- 最近一次发给模型的完整 prompt（代码块展示）
+
+#### 3. 最近 Prompt 卡片
+- 最近一次发给模型的完整 prompt（系统提示词 + 记忆上下文 + 当前消息）
+
+#### 4. 记忆系统卡片
+- active 层容量进度条 + 当前内容列表
+- temporary / summary / static 层：可展开面板，显示各层全部内容
+- 近期交互缓冲数量
+- 定时任务状态（汇总任务运行中/清理任务运行中）
 
 #### 刷新机制
 - `ui.timer(2.0, refresh)` 每 2 秒自动刷新
@@ -146,8 +149,11 @@ debug_console/app.py
   "active_capacity": int,
   "active_memories": [{"content": str, "timestamp": str}, ...],
   "temporary_count": int,
+  "temporary_memories": [{"content": str, "timestamp": str, "significance": float}, ...],
   "summary_count": int,
+  "summary_memories": [{"content": str, "timestamp": str, "significance": float}, ...],
   "static_count": int,
+  "static_memories": [{"content": str, "category": str}, ...],
   "recent_interactions": int,
   "summary_task_running": bool,
   "cleanup_task_running": bool,

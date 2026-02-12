@@ -10,6 +10,7 @@ from datetime import datetime
 from coolname import generate
 from nicegui import ui, context
 
+from debug_console.auto_viewer import AutoViewer
 from streaming_studio import StreamingStudio, Comment
 from streaming_studio.models import ResponseChunk
 
@@ -44,6 +45,9 @@ def create_chat_page(studio: StreamingStudio) -> None:
   }
   state["next_id"], state["next_nick"] = _random_identity()
 
+  # 自动观众引擎
+  auto_viewer = AutoViewer(studio)
+
   # 回调引用（stop / disconnect 时移除）
   callback_ref = {"fn": None, "chunk_fn": None}
 
@@ -70,6 +74,11 @@ def create_chat_page(studio: StreamingStudio) -> None:
         stop_btn.enable()
 
       async def on_stop():
+        if auto_viewer.is_running:
+          await auto_viewer.stop()
+          auto_switch.value = False
+          auto_label.text = "已停止"
+          auto_label.classes(replace="text-xs text-gray-400")
         if callback_ref["fn"]:
           studio.remove_callback(callback_ref["fn"])
           callback_ref["fn"] = None
@@ -85,6 +94,21 @@ def create_chat_page(studio: StreamingStudio) -> None:
       start_btn = ui.button("启动", on_click=on_start).props("dense")
       stop_btn = ui.button("停止", on_click=on_stop).props("dense")
       stop_btn.disable()
+
+      ui.separator().props("vertical")
+
+      async def on_auto_toggle(e):
+        if e.value:
+          await auto_viewer.start()
+          auto_label.text = "运行中"
+          auto_label.classes(replace="text-xs text-green-600")
+        else:
+          await auto_viewer.stop()
+          auto_label.text = "已停止"
+          auto_label.classes(replace="text-xs text-gray-400")
+
+      auto_switch = ui.switch("自动观众", on_change=on_auto_toggle).props("dense")
+      auto_label = ui.label("已停止").classes("text-xs text-gray-400")
 
     # ── 用户模式切换 ──
     with ui.row().classes("w-full items-center gap-4 flex-wrap"):
@@ -251,6 +275,9 @@ def create_chat_page(studio: StreamingStudio) -> None:
   # ── 清理 ──
 
   def cleanup():
+    if auto_viewer.is_running:
+      import asyncio
+      asyncio.create_task(auto_viewer.stop())
     if callback_ref["fn"]:
       studio.remove_callback(callback_ref["fn"])
       callback_ref["fn"] = None
