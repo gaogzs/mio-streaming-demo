@@ -9,7 +9,9 @@
 SINGLE_CLASSIFY_PROMPT = (
   "当前直播间话题列表：\n{topic_list}\n\n"
   "新弹幕：{comment_content}\n\n"
-  "这条弹幕属于哪个话题？只输出 topic_id，如果不属于任何话题输出 none。"
+  "这条弹幕属于哪个话题？只输出 topic_id。\n"
+  "注意：只有弹幕确实在讨论某个话题时才归类。"
+  "纯表情、简短打招呼（如「哈哈」「来了」「6」）、无实质内容的弹幕一律输出 none。"
 )
 
 # 批量弹幕分类 prompt
@@ -18,9 +20,11 @@ SINGLE_CLASSIFY_PROMPT = (
 BATCH_CLASSIFY_PROMPT = (
   "当前直播间话题列表：\n{topic_list}\n\n"
   "以下弹幕需要分类到话题：\n{comments}\n\n"
-  "将每条弹幕分类到最相关的话题。如果不属于任何话题，标记为 none。\n"
+  "将每条弹幕分类到最相关的话题。\n"
+  "注意：只有弹幕确实在讨论某个话题时才归类。"
+  "纯表情、简短打招呼（如「哈哈」「来了」「6」）、无实质内容的弹幕一律标记为 none。\n"
   "只输出 JSON 格式，键为弹幕编号，值为 topic_id 或 none。例如：\n"
-  '  {{"1": "game_discussion", "2": "none", "3": "greeting"}}'
+  '  {{"1": "game_discussion", "2": "none", "3": "none"}}'
 )
 
 # 回复后内容分析 prompt（任务 A）
@@ -32,12 +36,16 @@ CONTENT_ANALYSIS_PROMPT = (
   "【主播回复】\n{response}\n\n"
   "请判断：\n"
   "1. 哪些话题的进度需要更新？给出新的进度描述。\n"
-  "2. 是否出现了新话题？如果有，给出 topic_id（snake_case）和初始描述。\n"
+  "2. 是否出现了全新的、有实质讨论价值的话题？\n"
+  "   ⚠ 判断标准：新话题必须有明确的讨论方向和至少一定内容深度。\n"
+  "   以下情况不应创建新话题：纯粹打招呼、简短附和、重复已有话题、单次提问。\n"
+  "   如果不确定，就不要创建。\n"
   "3. 哪些话题可以继续跟进？给出跟进建议（以第三方顾问视角）。\n\n"
   "只输出 JSON 格式：\n"
   '{{\n'
   '  "progress_updates": {{"topic_id": "新进度描述"}},\n'
-  '  "new_topics": [{{"topic_id": "xxx", "progress": "描述", "suggestion": "建议"}}],\n'
+  '  "new_topics": [{{"topic_id": "snake_case_id", "title": "自然语言标题", '
+  '"progress": "描述", "suggestion": "建议"}}],\n'
   '  "suggestion_updates": {{"topic_id": "新的跟进建议"}}\n'
   '}}'
 )

@@ -23,6 +23,7 @@ class Topic:
     updated_at: 最后更新时间
   """
   topic_id: str
+  title: str
   significance: float
   topic_progress: str
   comment_ids: tuple[str, ...] = field(default_factory=tuple)

@@ -134,6 +134,7 @@ class TopicManager:
     """生成模板初始话题（无模型调用）"""
     opening = Topic(
       topic_id="opening_greeting",
+      title="开场打招呼",
       significance=self._config.initial_significance,
       topic_progress="刚开始直播，准备和观众打招呼",
       suggestion=f"可以用{self._persona}的风格问候观众，做自我介绍，聊聊今天的心情或计划",
@@ -370,6 +371,7 @@ class TopicManager:
       "topics": [
         {
           "topic_id": t.topic_id,
+          "title": t.title,
           "significance": t.significance,
           "progress": t.topic_progress,
           "suggestion": t.suggestion,

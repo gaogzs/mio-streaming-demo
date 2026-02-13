@@ -18,6 +18,19 @@ from .table import TopicTable
 logger = logging.getLogger(__name__)
 
 
+def _significance_label(sig: float) -> str:
+  """将 significance 数值转换为自然语言评价"""
+  if sig >= 0.8:
+    return "很高"
+  if sig >= 0.6:
+    return "较高"
+  if sig >= 0.4:
+    return "中等"
+  if sig >= 0.2:
+    return "较低"
+  return "很低"
+
+
 def _format_topic_table(table: TopicTable) -> str:
   """格式化话题表供 prompt 使用"""
   topics = table.get_all()
@@ -26,8 +39,9 @@ def _format_topic_table(table: TopicTable) -> str:
   lines = []
   for t in topics:
     stale_mark = " [过期]" if t.stale else ""
+    label = _significance_label(t.significance)
     lines.append(
-      f"- {t.topic_id} (sig:{t.significance:.2f}{stale_mark}): "
+      f"- {t.topic_id}「{t.title}」(重要性: {label}{stale_mark}): "
       f"{t.topic_progress}"
     )
     if t.suggestion:
@@ -99,9 +113,11 @@ async def analyze_content(
     new_topics = []
     for item in data.get("new_topics", []):
       tid = item.get("topic_id", "").strip()
+      title = item.get("title", "").strip() or tid
       if tid and table.get(tid) is None:
         new_topics.append(Topic(
           topic_id=tid,
+          title=title,
           significance=config.initial_significance,
           topic_progress=item.get("progress", "新话题"),
           suggestion=item.get("suggestion", ""),

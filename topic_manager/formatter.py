@@ -16,20 +16,33 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _significance_label(sig: float) -> str:
+  """将 significance 数值转换为自然语言评价"""
+  if sig >= 0.8:
+    return "很高"
+  if sig >= 0.6:
+    return "较高"
+  if sig >= 0.4:
+    return "中等"
+  if sig >= 0.2:
+    return "较低"
+  return "很低"
+
+
 def get_annotations(table: TopicTable) -> dict[str, str]:
   """
-  获取弹幕 → 话题的标注映射
+  获取弹幕 → 话题标题的标注映射
 
   Args:
     table: 话题表
 
   Returns:
-    dict[comment_id, topic_id]
+    dict[comment_id, topic_title]（自然语言标题）
   """
   annotations: dict[str, str] = {}
   for topic in table.get_all():
     for cid in topic.comment_ids:
-      annotations[cid] = topic.topic_id
+      annotations[cid] = topic.title
   return annotations
 
 
@@ -121,7 +134,8 @@ def _format_topic_summary(
   lines = ["【当前话题】"]
 
   for topic in topics:
-    lines.append(f"\n--- {topic.topic_id} (重要性: {topic.significance:.2f}) ---")
+    label = _significance_label(topic.significance)
+    lines.append(f"\n--- {topic.title} (重要性: {label}) ---")
     lines.append(f"进度: {topic.topic_progress}")
 
     if topic.suggestion:
@@ -172,9 +186,9 @@ def _format_instructions(
   # 过期话题指令
   stale_topics = [t for t in topics if t.stale]
   if stale_topics:
-    names = ", ".join(t.topic_id for t in stale_topics)
+    names = "、".join(f"「{t.title}」" for t in stale_topics)
     instructions.append(
-      f"以下话题已经聊了很久，建议主动切换到新话题：{names}"
+      f"{names}已经聊了很久，建议自然地收束这些话题，尝试开启新方向"
     )
 
   # 冷场建议
@@ -184,7 +198,7 @@ def _format_instructions(
     if followup_topics:
       best = max(followup_topics, key=lambda t: t.significance)
       instructions.append(
-        f"当前没有新弹幕，可以主动跟进话题「{best.topic_id}」：{best.suggestion}"
+        f"当前没有新弹幕，可以主动跟进话题「{best.title}」：{best.suggestion}"
       )
 
   if not instructions:

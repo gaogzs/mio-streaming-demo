@@ -48,6 +48,11 @@ def rule_match(
       if word and word in content_lower:
         score += 2
 
+    # title 中的关键词
+    for char in topic.title:
+      if char and char in content_lower:
+        score += 1
+
     # progress 中的关键词
     progress_chars = set(topic.topic_progress)
     overlap = sum(1 for c in content_lower if c in progress_chars)
@@ -71,7 +76,7 @@ def _format_topic_list(topics: list[Topic]) -> str:
     return "（当前无话题）"
   lines = []
   for t in topics:
-    lines.append(f"- {t.topic_id}: {t.topic_progress}")
+    lines.append(f"- {t.topic_id}「{t.title}」: {t.topic_progress}")
   return "\n".join(lines)
 
 

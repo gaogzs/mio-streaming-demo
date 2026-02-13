@@ -288,9 +288,10 @@ def _update_topic_card(refs: dict, state: dict) -> None:
       ui.label("（无话题）").classes("text-xs text-gray-400 italic")
     for t in topics:
       stale_mark = " [过期]" if t.get("stale") else ""
+      title = t.get("title", t["topic_id"])
       with ui.card().classes("w-full p-2").style("background: #f8f9fa"):
         ui.label(
-          f"{t['topic_id']} (sig: {t['significance']:.2f}){stale_mark}"
+          f"{title} ({t['topic_id']}, sig: {t['significance']:.2f}){stale_mark}"
         ).classes("text-sm font-bold")
         ui.label(f"进度: {t['progress']}").classes("text-xs text-gray-600")
         if t.get("suggestion"):
