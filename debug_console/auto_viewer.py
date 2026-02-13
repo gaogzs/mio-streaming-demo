@@ -30,10 +30,14 @@ class AutoViewerConfig:
     min_interval: 最小生成间隔（秒）
     max_interval: 最大生成间隔（秒）
     max_responses_context: 主播回复上下文数量（最近 N 条）
+    viewer_pool_size: 固定观众池大小
   """
-  min_interval: float = 1.0
-  max_interval: float = 5.0
-  max_responses_context: int = 3
+  min_interval: float = 10.0
+  max_interval: float = 15.0
+  max_responses_context: int = 5
+  viewer_pool_size: int = 6
+  viewer_rotate_interval: float = 60.0
+  """观众轮换间隔（秒），每隔这么久随机换掉 1-2 个观众"""
 
 
 def _load_prompt() -> str:
@@ -70,6 +74,12 @@ class AutoViewer:
     self._task: Optional[asyncio.Task] = None
     self._response_cb: Optional[Callable] = None
     self._comment_callbacks: list[Callable[[Comment], None]] = []
+
+    # 固定观众池
+    self._viewer_pool: list[tuple[str, str]] = [
+      _random_identity() for _ in range(config.viewer_pool_size)
+    ]
+    self._time_since_rotate: float = 0.0
 
   @property
   def is_running(self) -> bool:
@@ -139,6 +149,12 @@ class AutoViewer:
         if not self._running:
           break
 
+        # 定期轮换观众
+        self._time_since_rotate += interval
+        if self._time_since_rotate >= self.config.viewer_rotate_interval:
+          self._rotate_viewers()
+          self._time_since_rotate = 0.0
+
         if self._recent_responses:
           await self._generate_and_send()
       except asyncio.CancelledError:
@@ -146,6 +162,15 @@ class AutoViewer:
       except Exception as e:
         logger.error("自动观众生成错误: %s", e)
         await asyncio.sleep(2)
+
+  def _rotate_viewers(self) -> None:
+    """随机换掉 1-2 个观众，模拟观众进出"""
+    count = random.randint(1, 2)
+    indices = random.sample(range(len(self._viewer_pool)), min(count, len(self._viewer_pool)))
+    for i in indices:
+      old_name = self._viewer_pool[i][1]
+      self._viewer_pool[i] = _random_identity()
+      logger.info("观众轮换: %s → %s", old_name, self._viewer_pool[i][1])
 
   async def _generate_and_send(self) -> None:
     """调用小模型生成弹幕并发送"""
@@ -166,7 +191,7 @@ class AutoViewer:
       ]
 
       for line in lines[:4]:
-        user_id, nickname = _random_identity()
+        user_id, nickname = random.choice(self._viewer_pool)
         comment = Comment(
           user_id=user_id,
           nickname=nickname,

@@ -140,9 +140,9 @@ def create_chat_page(studio: StreamingStudio) -> None:
         )
 
         def on_uid_change(e):
-          state["user_id"] = e.value
+          state["user_id"] = e.args
         def on_nick_change(e):
-          state["nickname"] = e.value
+          state["nickname"] = e.args
         uid_input.on("update:model-value", on_uid_change)
         nick_input.on("update:model-value", on_nick_change)
 

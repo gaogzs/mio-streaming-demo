@@ -7,6 +7,7 @@ python -m debug_console 入口
 """
 
 import argparse
+import logging
 import sys
 from pathlib import Path
 
@@ -45,6 +46,12 @@ def main():
   )
 
   args = parser.parse_args()
+
+  logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+    datefmt="%H:%M:%S",
+  )
 
   try:
     run(

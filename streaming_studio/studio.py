@@ -147,6 +147,9 @@ class StreamingStudio:
     self._interaction_instruction = _loader.load("studio/interaction_instruction.txt")
     self._silence_notice = _loader.load("studio/silence_notice.txt")
 
+    # 上次已使用的动态等待时间（避免同一个建议重复使用）
+    self._last_used_timing: Optional[tuple[float, float]] = None
+
     # 后台任务引用（防止 GC 回收）
     self._background_tasks: set[asyncio.Task] = set()
 
@@ -297,9 +300,11 @@ class StreamingStudio:
     """
     while self._running:
       try:
-        # 动态等待时间（话题管理器建议 > 默认值）
-        if self._topic_manager and self._topic_manager.suggested_timing:
-          min_t, max_t = self._topic_manager.suggested_timing
+        # 动态等待时间（话题管理器建议 > 默认值，同一个建议只用一次）
+        timing = self._topic_manager.suggested_timing if self._topic_manager else None
+        if timing and timing != self._last_used_timing:
+          self._last_used_timing = timing
+          min_t, max_t = timing
           if min_t > 0 and max_t >= min_t:
             remaining = random.uniform(min_t, max_t)
           else:

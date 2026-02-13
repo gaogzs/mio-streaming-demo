@@ -62,9 +62,12 @@ class MemoryManager:
         persist_directory=None,
       )
 
-    # 创建共享 embeddings（避免重复加载模型）
+    # 创建共享 embeddings（避免重复加载模型，优先使用 GPU）
+    import torch
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     embeddings = HuggingFaceEmbeddings(
       model_name=embedding_config.model_name,
+      model_kwargs={"device": device},
     )
 
     # 初始化归档器（纯内存模式下禁用）
