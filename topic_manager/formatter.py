@@ -6,6 +6,7 @@
 import logging
 from typing import Optional, TYPE_CHECKING
 
+from prompts import PromptLoader
 from .config import TopicManagerConfig
 from .models import Topic
 from .table import TopicTable
@@ -14,6 +15,10 @@ if TYPE_CHECKING:
   from streaming_studio.database import CommentDatabase
 
 logger = logging.getLogger(__name__)
+
+_loader = PromptLoader()
+_STALE_INSTRUCTION = _loader.load("topic/stale_instruction.txt")
+_FOLLOWUP_INSTRUCTION = _loader.load("topic/followup_instruction.txt")
 
 
 def _significance_label(sig: float) -> str:
@@ -187,9 +192,7 @@ def _format_instructions(
   stale_topics = [t for t in topics if t.stale]
   if stale_topics:
     names = "、".join(f"「{t.title}」" for t in stale_topics)
-    instructions.append(
-      f"{names}已经聊了很久，建议自然地收束这些话题，尝试开启新方向"
-    )
+    instructions.append(_STALE_INSTRUCTION.format(names=names))
 
   # 冷场建议
   has_new_comments = len(new_comment_ids) > 0
@@ -198,7 +201,7 @@ def _format_instructions(
     if followup_topics:
       best = max(followup_topics, key=lambda t: t.significance)
       instructions.append(
-        f"当前没有新弹幕，可以主动跟进话题「{best.title}」：{best.suggestion}"
+        _FOLLOWUP_INSTRUCTION.format(title=best.title, suggestion=best.suggestion)
       )
 
   if not instructions:

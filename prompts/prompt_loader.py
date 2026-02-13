@@ -42,7 +42,7 @@ class PromptLoader:
     加载指定的提示词文件
 
     Args:
-      filename: 文件名（包含扩展名）
+      filename: 文件名或相对路径（如 "topic/single_classify.txt"）
 
     Returns:
       文件内容字符串
@@ -54,6 +54,45 @@ class PromptLoader:
     if not file_path.exists():
       raise FileNotFoundError(f"提示词文件不存在: {file_path}")
     return file_path.read_text(encoding="utf-8")
+
+  def load_template(self, path: str, **kwargs: str) -> str:
+    """
+    加载 txt 模板并填充变量
+
+    Args:
+      path: 模板文件相对路径
+      **kwargs: 模板变量
+
+    Returns:
+      填充后的字符串
+    """
+    raw = self.load(path)
+    if kwargs:
+      return raw.format(**kwargs)
+    return raw
+
+  def load_headers(self, path: str) -> dict[str, str]:
+    """
+    加载 key=value 格式的标题映射文件
+
+    文件格式：每行一个 key=value，空行和 # 开头的行跳过
+
+    Args:
+      path: 文件相对路径
+
+    Returns:
+      dict[key, value]
+    """
+    raw = self.load(path)
+    headers: dict[str, str] = {}
+    for line in raw.splitlines():
+      line = line.strip()
+      if not line or line.startswith("#"):
+        continue
+      if "=" in line:
+        key, value = line.split("=", 1)
+        headers[key.strip()] = value.strip()
+    return headers
 
   def get_base_instruction(self) -> str:
     """

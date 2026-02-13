@@ -18,6 +18,7 @@ if str(project_root) not in sys.path:
   sys.path.insert(0, str(project_root))
 
 from langchain_wrapper import LLMWrapper, ModelType
+from prompts import PromptLoader
 from .models import Comment, StreamerResponse, ResponseChunk
 from .database import CommentDatabase
 from .config import StudioConfig
@@ -139,6 +140,12 @@ class StreamingStudio:
         persona=persona,
         database=self.database,
       )
+
+    # Prompt 模板
+    _loader = PromptLoader()
+    self._comment_headers = _loader.load_headers("studio/comment_headers.txt")
+    self._interaction_instruction = _loader.load("studio/interaction_instruction.txt")
+    self._silence_notice = _loader.load("studio/silence_notice.txt")
 
     # 后台任务引用（防止 GC 回收）
     self._background_tasks: set[asyncio.Task] = set()
@@ -514,7 +521,7 @@ class StreamingStudio:
       if annotations and c.id in annotations:
         tags.append(f"话题: {annotations[c.id]}")
       if interaction_targets and c.id in interaction_targets:
-        tags.append("回复")
+        tags.append("优先回复")
       if tags:
         prefix = "[" + " | ".join(tags) + "] "
         return f"- {prefix}{base}"
@@ -524,21 +531,21 @@ class StreamingStudio:
 
     if old_comments:
       lines = [fmt(c) for c in old_comments]
-      parts.append("【上次回复前的弹幕（背景参考）】\n" + "\n".join(lines))
+      parts.append(self._comment_headers["old_comments"] + "\n" + "\n".join(lines))
 
     if new_comments:
       lines = [fmt(c) for c in new_comments]
-      header = "【上次回复后的新弹幕】"
+      header = self._comment_headers["new_comments"]
       if interaction_targets:
-        header += "\n（标记了 [回复] 的弹幕是本次重点互动对象，请优先回应这些观众）"
+        header += "\n" + self._interaction_instruction
       parts.append(header + "\n" + "\n".join(lines))
     else:
       # 计算距离最近一条弹幕的沉默时长
-      silence_msg = "【上次回复后无人说话】"
+      silence_msg = self._comment_headers["silence"]
       if old_comments:
         last_comment = old_comments[-1]
         silence_seconds = int((now - last_comment.timestamp).total_seconds())
-        silence_msg += f"\n（已经 {silence_seconds} 秒没人说话了）"
+        silence_msg += "\n" + self._silence_notice.format(silence_seconds=silence_seconds)
       parts.append(silence_msg)
 
     return "\n\n".join(parts)
