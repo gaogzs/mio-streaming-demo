@@ -62,6 +62,16 @@ prompts/              # 通用提示词
   prompt_loader.py    #   PromptLoader（加载 base_instruction + 委托 PersonaLoader）
   base_instruction.txt #  主播基础指令
 
+topic_manager/        # 话题管理器（可选模块，enable_topic_manager 开启）
+  config.py           #   TopicManagerConfig（所有可调参数）
+  models.py           #   Topic 数据类（frozen dataclass）
+  table.py            #   TopicTable（内存话题表，CRUD + 衰减 + 清理）
+  classifier.py       #   弹幕分类器（规则匹配降级 → 小模型；单条/批量模式）
+  analyzer.py         #   回复后分析器（内容分析 + 节奏分析，2 个并行异步任务）
+  formatter.py        #   话题输出格式化（弹幕标注 + 话题摘要 + 额外指令）
+  prompts.py          #   所有 LLM prompt 模板
+  manager.py          #   TopicManager 编排器（生命周期 + 弹幕转发 + 分析调度）
+
 streaming_studio/     # 虚拟直播间：异步运行、弹幕缓冲、双轨定时器、回复分发、SQLite存储
 connection/           # WebSocket层：StreamServiceHost、多客户端订阅
 
@@ -88,6 +98,8 @@ langchain_wrapper/wrapper → prompts/（获取完整 system prompt）
 debug_console → streaming_studio（读取 debug_state）
               → langchain_wrapper（读取 debug_state）
               → memory（读取 debug_state）
+              → topic_manager（读取 debug_state，通过 streaming_studio 间接）
+streaming_studio → topic_manager（弹幕转发 + 上下文获取 + 回复后分析）
 ```
 
 ## 可用角色

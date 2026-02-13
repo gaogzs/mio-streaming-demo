@@ -40,7 +40,7 @@ def main():
     help="开启全局记忆（持久化到文件，默认关闭）",
   )
   parser.add_argument(
-    "--topic-manager", action="store_true", default=False,
+    "--topic-manager", action="store_true", default=True,
     help="启用话题管理器（追踪和管理直播话题，默认关闭）",
   )
 

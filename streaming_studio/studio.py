@@ -388,6 +388,74 @@ class StreamingStudio:
 
     return old, new
 
+  def _select_interaction_targets(
+    self,
+    new_comments: list[Comment],
+  ) -> set[str]:
+    """
+    从新弹幕中选择互动目标（加权随机抽样）
+
+    权重逻辑：
+    - 有话题归属 → 按话题 significance 加权（过期话题降权）
+    - 无话题归属 → 基础权重
+
+    数量由高斯分布决定，至少 1 条。
+
+    Args:
+      new_comments: 新弹幕列表
+
+    Returns:
+      被选中为互动目标的弹幕 ID 集合
+    """
+    if not new_comments:
+      return set()
+
+    # 计算每条弹幕的权重
+    topic_weights: dict[str, float] = {}
+    if self._topic_manager:
+      for topic in self._topic_manager.table.get_all():
+        w = (
+          self.config.interaction_stale_weight
+          if topic.stale
+          else topic.significance
+        )
+        for cid in topic.comment_ids:
+          topic_weights[cid] = max(topic_weights.get(cid, 0), w)
+
+    weights = []
+    for c in new_comments:
+      if c.id in topic_weights:
+        weights.append(max(topic_weights[c.id], 0.01))
+      else:
+        weights.append(self.config.interaction_base_weight)
+
+    # 确定选几条（高斯分布，至少 1 条）
+    mu = min(self.config.interaction_target_mu, len(new_comments) * 0.6)
+    count = round(random.gauss(mu, self.config.interaction_target_sigma))
+    count = max(1, min(count, len(new_comments)))
+
+    # 加权随机不放回抽样
+    selected: set[str] = set()
+    pool = list(zip(new_comments, weights))
+    for _ in range(count):
+      if not pool:
+        break
+      total = sum(w for _, w in pool)
+      if total <= 0:
+        break
+      r = random.uniform(0, total)
+      cumulative = 0.0
+      chosen_idx = len(pool) - 1  # 浮点精度兜底：默认最后一个
+      for i, (c, w) in enumerate(pool):
+        cumulative += w
+        if cumulative >= r:
+          chosen_idx = i
+          break
+      chosen_comment, _ = pool.pop(chosen_idx)
+      selected.add(chosen_comment.id)
+
+    return selected
+
   @staticmethod
   def _format_comment(comment: Comment, now: datetime) -> str:
     """
@@ -424,6 +492,7 @@ class StreamingStudio:
     old_comments: list[Comment],
     new_comments: list[Comment],
     annotations: Optional[dict[str, str]] = None,
+    interaction_targets: Optional[set[str]] = None,
   ) -> str:
     """
     组合弹幕为 LLM 输入 prompt
@@ -432,6 +501,7 @@ class StreamingStudio:
       old_comments: 上次回复前的弹幕
       new_comments: 上次回复后的新弹幕
       annotations: 弹幕→话题标注映射（来自话题管理器）
+      interaction_targets: 被选中为互动目标的弹幕 ID 集合
 
     Returns:
       格式化后的 prompt 字符串
@@ -440,8 +510,14 @@ class StreamingStudio:
 
     def fmt(c: Comment) -> str:
       base = self._format_comment(c, now)
+      tags = []
       if annotations and c.id in annotations:
-        return f"- [话题: {annotations[c.id]}] {base}"
+        tags.append(f"话题: {annotations[c.id]}")
+      if interaction_targets and c.id in interaction_targets:
+        tags.append("回复")
+      if tags:
+        prefix = "[" + " | ".join(tags) + "] "
+        return f"- {prefix}{base}"
       return f"- {base}"
 
     parts = []
@@ -452,7 +528,10 @@ class StreamingStudio:
 
     if new_comments:
       lines = [fmt(c) for c in new_comments]
-      parts.append("【上次回复后的新弹幕】\n" + "\n".join(lines))
+      header = "【上次回复后的新弹幕】"
+      if interaction_targets:
+        header += "\n（标记了 [回复] 的弹幕是本次重点互动对象，请优先回应这些观众）"
+      parts.append(header + "\n" + "\n".join(lines))
     else:
       # 计算距离最近一条弹幕的沉默时长
       silence_msg = "【上次回复后无人说话】"
@@ -482,11 +561,15 @@ class StreamingStudio:
     # 话题管理器：获取标注和上下文
     annotations = None
     topic_context = None
+    interaction_targets = None
     if self._topic_manager:
       annotations = self._topic_manager.get_comment_annotations()
       topic_context = self._topic_manager.format_context(old_comments, new_comments)
+      interaction_targets = self._select_interaction_targets(new_comments)
 
-    prompt = self._format_comments_for_prompt(old_comments, new_comments, annotations)
+    prompt = self._format_comments_for_prompt(
+      old_comments, new_comments, annotations, interaction_targets,
+    )
     self._last_prompt = prompt
 
     # 逐条弹幕内容作为 RAG 查询（语义更精准）
@@ -523,11 +606,15 @@ class StreamingStudio:
     # 话题管理器：获取标注和上下文
     annotations = None
     topic_context = None
+    interaction_targets = None
     if self._topic_manager:
       annotations = self._topic_manager.get_comment_annotations()
       topic_context = self._topic_manager.format_context(old_comments, new_comments)
+      interaction_targets = self._select_interaction_targets(new_comments)
 
-    prompt = self._format_comments_for_prompt(old_comments, new_comments, annotations)
+    prompt = self._format_comments_for_prompt(
+      old_comments, new_comments, annotations, interaction_targets,
+    )
     self._last_prompt = prompt
 
     # 逐条弹幕内容作为 RAG 查询（语义更精准）
