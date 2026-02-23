@@ -193,4 +193,4 @@ def _format_instructions(
   if not instructions:
     return ""
 
-  return "【话题指令】\n" + "\n".join(f"- {i}" for i in instructions)
+  return "【直觉提醒】\n" + "\n".join(f"- {i}" for i in instructions)

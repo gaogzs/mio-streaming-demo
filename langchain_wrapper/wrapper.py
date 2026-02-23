@@ -91,7 +91,7 @@ class LLMWrapper:
 
   @property
   def last_extra_context(self) -> str:
-    """最近一次使用的记忆上下文（供调试监控）"""
+    """最近一次使用的完整上下文（供调试监控）"""
     return self._last_extra_context
 
   async def start_memory(self) -> None:
@@ -113,18 +113,19 @@ class LLMWrapper:
     """清空对话历史"""
     self._history = []
 
-  def _build_extra_context(
+  def _build_context(
     self,
     user_input: str,
     rag_queries: Optional[list[str]] = None,
     topic_context: Optional[str] = None,
     scene_context: Optional[str] = None,
-  ) -> str:
+  ) -> tuple[str, str]:
     """
-    构建额外上下文（场景快照 + 记忆 + 话题）
+    构建前置/后置上下文
 
-    注入到 user message 前面（而非 system prompt），让模型
-    明确区分"静态规则"和"当前动态状态"。
+    user message 最终结构：pre_context → 弹幕 → post_context
+    - pre_context: 场景快照（让模型先知道"我在哪"）
+    - post_context: 记忆 + 话题（辅助参考信息）
 
     Args:
       user_input: 用户输入（默认也用作 RAG 查询）
@@ -134,22 +135,23 @@ class LLMWrapper:
       scene_context: 场景快照（直播间状态概括）
 
     Returns:
-      格式化的额外上下文文本
+      (pre_context, post_context) 元组
     """
-    parts: list[str] = []
+    pre_parts: list[str] = []
+    post_parts: list[str] = []
 
     if scene_context:
-      parts.append(scene_context)
+      pre_parts.append(scene_context)
 
     if self._memory is not None:
       query: Union[str, list[str]] = rag_queries if rag_queries else user_input
       active_text, rag_text = self._memory.retrieve(query)
-      parts.extend(p for p in [active_text, rag_text] if p)
+      post_parts.extend(p for p in [active_text, rag_text] if p)
 
     if topic_context:
-      parts.append(topic_context)
+      post_parts.append(topic_context)
 
-    return "\n\n".join(parts)
+    return "\n\n".join(pre_parts), "\n\n".join(post_parts)
 
   def chat(
     self,
@@ -172,12 +174,13 @@ class LLMWrapper:
     Returns:
       模型回复
     """
-    extra_context = self._build_extra_context(
+    pre_ctx, post_ctx = self._build_context(
       user_input, rag_queries, topic_context, scene_context,
     )
-    self._last_extra_context = extra_context
+    self._last_extra_context = "\n\n".join(p for p in [pre_ctx, post_ctx] if p)
     response = self.pipeline.invoke(
-      user_input, self._history, extra_context=extra_context,
+      user_input, self._history,
+      pre_context=pre_ctx, post_context=post_ctx,
     )
 
     if save_history:
@@ -210,12 +213,13 @@ class LLMWrapper:
     Returns:
       模型回复
     """
-    extra_context = self._build_extra_context(
+    pre_ctx, post_ctx = self._build_context(
       user_input, rag_queries, topic_context, scene_context,
     )
-    self._last_extra_context = extra_context
+    self._last_extra_context = "\n\n".join(p for p in [pre_ctx, post_ctx] if p)
     response = await self.pipeline.ainvoke(
-      user_input, self._history, extra_context=extra_context,
+      user_input, self._history,
+      pre_context=pre_ctx, post_context=post_ctx,
     )
 
     if save_history:
@@ -254,16 +258,17 @@ class LLMWrapper:
     Yields:
       模型输出的文本片段
     """
-    extra_context = self._build_extra_context(
+    pre_ctx, post_ctx = self._build_context(
       user_input, rag_queries, topic_context, scene_context,
     )
-    self._last_extra_context = extra_context
+    self._last_extra_context = "\n\n".join(p for p in [pre_ctx, post_ctx] if p)
     full_response = ""
     completed = False
 
     try:
       async for chunk in self.pipeline.astream(
-        user_input, self._history, extra_context=extra_context,
+        user_input, self._history,
+        pre_context=pre_ctx, post_context=post_ctx,
       ):
         full_response += chunk
         yield chunk

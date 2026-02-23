@@ -89,12 +89,15 @@ class StreamingPipeline:
         formatted = messages
       return {**data, "history": formatted}
 
-    # 注入系统提示词 + 动态上下文前置到 user input
+    # 注入系统提示词 + 动态上下文包裹 user input
     def inject_system_prompt(data: dict) -> dict:
       input_text = data.get("input", "")
-      extra = data.get("extra_context", "")
-      if extra:
-        input_text = f"{extra}\n\n---\n\n{input_text}"
+      pre = data.get("pre_context", "")
+      post = data.get("post_context", "")
+      if pre:
+        input_text = f"{pre}\n\n---\n\n{input_text}"
+      if post:
+        input_text = f"{input_text}\n\n---\n\n{post}"
       return {**data, "system_prompt": self.system_prompt, "input": input_text}
 
     # 基础管道（流式使用，不含后处理器）
@@ -214,7 +217,8 @@ class StreamingPipeline:
     self,
     input_text: str,
     history: Optional[list[tuple[str, str]]] = None,
-    extra_context: str = "",
+    pre_context: str = "",
+    post_context: str = "",
   ) -> str:
     """
     同步调用管道
@@ -222,7 +226,8 @@ class StreamingPipeline:
     Args:
       input_text: 用户输入文本
       history: 对话历史
-      extra_context: 额外上下文（如记忆），追加到 system prompt
+      pre_context: 前置上下文（如场景快照），放在 user input 之前
+      post_context: 后置上下文（如记忆、话题），放在 user input 之后
 
     Returns:
       模型回复文本
@@ -230,14 +235,16 @@ class StreamingPipeline:
     return self._chain.invoke({
       "input": input_text,
       "history": history,
-      "extra_context": extra_context,
+      "pre_context": pre_context,
+      "post_context": post_context,
     })
 
   async def ainvoke(
     self,
     input_text: str,
     history: Optional[list[tuple[str, str]]] = None,
-    extra_context: str = "",
+    pre_context: str = "",
+    post_context: str = "",
   ) -> str:
     """
     异步调用管道
@@ -245,7 +252,8 @@ class StreamingPipeline:
     Args:
       input_text: 用户输入文本
       history: 对话历史
-      extra_context: 额外上下文（如记忆），追加到 system prompt
+      pre_context: 前置上下文（如场景快照），放在 user input 之前
+      post_context: 后置上下文（如记忆、话题），放在 user input 之后
 
     Returns:
       模型回复文本
@@ -253,14 +261,16 @@ class StreamingPipeline:
     return await self._chain.ainvoke({
       "input": input_text,
       "history": history,
-      "extra_context": extra_context,
+      "pre_context": pre_context,
+      "post_context": post_context,
     })
 
   async def astream(
     self,
     input_text: str,
     history: Optional[list[tuple[str, str]]] = None,
-    extra_context: str = "",
+    pre_context: str = "",
+    post_context: str = "",
   ) -> AsyncIterator[str]:
     """
     异步流式调用管道，逐 token 返回
@@ -270,7 +280,8 @@ class StreamingPipeline:
     Args:
       input_text: 用户输入文本
       history: 对话历史
-      extra_context: 额外上下文（如记忆），追加到 system prompt
+      pre_context: 前置上下文（如场景快照），放在 user input 之前
+      post_context: 后置上下文（如记忆、话题），放在 user input 之后
 
     Yields:
       模型输出的文本片段（通常 1~几个字符）
@@ -278,7 +289,8 @@ class StreamingPipeline:
     async for chunk in self._stream_chain.astream({
       "input": input_text,
       "history": history,
-      "extra_context": extra_context,
+      "pre_context": pre_context,
+      "post_context": post_context,
     }):
       yield chunk
 

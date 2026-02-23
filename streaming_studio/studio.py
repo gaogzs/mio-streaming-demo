@@ -473,7 +473,7 @@ class StreamingStudio:
     """
     格式化单条弹幕
 
-    格式: [14:23:05 / 35秒前] 花凛 (id: user_abc): 主播唱首歌
+    格式: [35秒前] 花凛 (id: user_abc): 主播唱首歌
 
     Args:
       comment: 弹幕对象
@@ -482,7 +482,6 @@ class StreamingStudio:
     Returns:
       格式化后的字符串
     """
-    time_str = comment.timestamp.strftime("%H:%M:%S")
     delta = now - comment.timestamp
     total_seconds = int(delta.total_seconds())
 
@@ -497,7 +496,7 @@ class StreamingStudio:
       minutes = (total_seconds % 3600) // 60
       relative = f"{hours}小时{minutes}分前"
 
-    return f"[{time_str} / {relative}] {comment.nickname} (id: {comment.user_id}): {comment.content}"
+    return f"[{relative}] {comment.nickname} (id: {comment.user_id}): {comment.content}"
 
   def _format_comments_for_prompt(
     self,
@@ -741,9 +740,9 @@ class StreamingStudio:
     """
     recent = list(self._comment_buffer)[-10:]
 
-    # 构造完整 prompt 预览（系统提示词 + 记忆上下文 + 当前弹幕）
+    # 构造完整 prompt 预览（系统提示词 + 弹幕 + 记忆/话题上下文）
     # 注意：studio 使用 save_history=False，不积累对话历史，
-    # 上下文由记忆系统通过 extra_context 注入到系统提示词中。
+    # 上下文结构：pre_context(场景) → 弹幕 → post_context(记忆+话题)
     full_prompt = None
     if self._last_prompt:
       system_prompt = self.llm_wrapper.pipeline.system_prompt
@@ -752,9 +751,9 @@ class StreamingStudio:
       parts = [f"=== 系统提示词 ===\n{system_prompt}\n"]
 
       if extra_context:
-        parts.append(f"=== 记忆上下文（注入到系统提示词末尾）===\n{extra_context}\n")
+        parts.append(f"=== 动态上下文（场景+记忆+话题）===\n{extra_context}\n")
 
-      parts.append(f"=== 当前用户消息 ===\n{self._last_prompt}")
+      parts.append(f"=== 弹幕输入 ===\n{self._last_prompt}")
       full_prompt = "\n".join(parts)
 
     return {
