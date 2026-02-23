@@ -37,12 +37,16 @@ def _relative_time(memory_time: datetime, now: datetime) -> str:
     return f"{minutes}分前"
 
 
-def format_active_memories(entries: list[MemoryEntry]) -> str:
+def format_active_memories(
+  entries: list[MemoryEntry],
+  include_response: bool = True,
+) -> str:
   """
   格式化 active 层记忆（无 RAG，直接时序列出）
 
   Args:
     entries: active 层记忆列表
+    include_response: 是否附带当时的原回复
 
   Returns:
     格式化文本
@@ -53,6 +57,8 @@ def format_active_memories(entries: list[MemoryEntry]) -> str:
   lines = ["【近期记忆】"]
   for entry in entries:
     lines.append(f"- {entry.content}")
+    if include_response and entry.original_response:
+      lines.append(f"  （我当时说：{entry.original_response}）")
   return "\n".join(lines)
 
 
@@ -60,6 +66,7 @@ def format_retrieved_memories(
   entries: list[MemoryEntry],
   now: Optional[datetime] = None,
   current_session_id: Optional[str] = None,
+  include_response: bool = False,
 ) -> str:
   """
   格式化跨层 RAG 检索结果（按层级分组，各层有小标题）
@@ -129,6 +136,8 @@ def format_retrieved_memories(
         # temporary / summary 层加相对时间前缀
         rel_time = _relative_time(entry.timestamp, now)
         lines.append(f"- {cross_session_prefix}【{rel_time}的记忆】{entry.content}")
+        if include_response and entry.original_response:
+          lines.append(f"  （我当时说：{entry.original_response}）")
 
     parts.append("\n".join(lines))
 

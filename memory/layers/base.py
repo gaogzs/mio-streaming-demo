@@ -21,3 +21,4 @@ class MemoryEntry:
   significance: Optional[float] = None  # 仅 temporary / summary 层有值
   score: float = 0.0                  # RAG 相似度分数
   metadata: Optional[dict] = None     # 层级特有的元数据
+  original_response: Optional[str] = None  # 产生此记忆时主播的原回复

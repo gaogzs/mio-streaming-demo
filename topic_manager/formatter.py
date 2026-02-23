@@ -149,21 +149,7 @@ def _format_topic_summary(
     if topic.stale:
       lines.append("(!) 这个话题已经聊了很久")
 
-    # 最近弹幕
-    recent_cids = topic.comment_ids[-config.recent_comments_per_topic:]
-    if recent_cids:
-      comment_lines = []
-      for cid in recent_cids:
-        comment = database.get_comment(cid)
-        if comment:
-          comment_lines.append(
-            f"  - {comment.nickname}: {comment.content}"
-          )
-      if comment_lines:
-        lines.append("最近相关弹幕:")
-        lines.extend(comment_lines)
-
-    # 最近用户
+    # 最近用户（弹幕内容已在 user message 中通过 [话题:xxx] 标注，不再重复）
     recent_uids = topic.user_ids[-config.recent_users_per_topic:]
     if recent_uids:
       nicknames = []

@@ -207,7 +207,7 @@ class MemoryManager:
       response: LLM 回复
     """
     summary_text = f"我回复了一位观众：他说「{user_input}」，我说了「{response[:50]}」"
-    self._active.add(summary_text)
+    self._active.add(summary_text, original_response=response)
     self._recent_interactions.append(
       (user_input, response, datetime.now())
     )

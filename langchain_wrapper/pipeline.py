@@ -89,13 +89,13 @@ class StreamingPipeline:
         formatted = messages
       return {**data, "history": formatted}
 
-    # 注入系统提示词（支持 extra_context 追加）
+    # 注入系统提示词 + 动态上下文前置到 user input
     def inject_system_prompt(data: dict) -> dict:
-      prompt = self.system_prompt
+      input_text = data.get("input", "")
       extra = data.get("extra_context", "")
       if extra:
-        prompt = f"{prompt}\n\n{extra}"
-      return {**data, "system_prompt": prompt}
+        input_text = f"{extra}\n\n---\n\n{input_text}"
+      return {**data, "system_prompt": self.system_prompt, "input": input_text}
 
     # 基础管道（流式使用，不含后处理器）
     self._stream_chain = (

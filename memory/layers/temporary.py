@@ -46,13 +46,19 @@ class TemporaryLayer:
     self._config = config or TemporaryConfig()
     self.session_id: Optional[str] = None
 
-  def add(self, content: str, timestamp: Optional[datetime] = None) -> str:
+  def add(
+    self,
+    content: str,
+    timestamp: Optional[datetime] = None,
+    original_response: Optional[str] = None,
+  ) -> str:
     """
     添加一条记忆（通常来自 active 层溢出）
 
     Args:
       content: 记忆内容
       timestamp: 原始时间戳（来自 active 层），默认为当前时间
+      original_response: 产生此记忆时主播的原回复
 
     Returns:
       记忆 ID
@@ -68,6 +74,8 @@ class TemporaryLayer:
     }
     if self.session_id is not None:
       metadata["session_id"] = self.session_id
+    if original_response is not None:
+      metadata["original_response"] = original_response
 
     self._store.add(
       doc_id=memory_id,
@@ -123,6 +131,7 @@ class TemporaryLayer:
         significance=new_sig,
         score=score,
         metadata=doc.metadata,
+        original_response=doc.metadata.get("original_response"),
       ))
 
     # 衰减所有未取用的记忆 + 清理低 significance 记忆

@@ -555,6 +555,41 @@ class StreamingStudio:
 
     return "\n\n".join(parts)
 
+  def _build_scene_context(
+    self,
+    old_comments: list[Comment],
+    new_comments: list[Comment],
+  ) -> str:
+    """
+    构建场景快照（直播间当前状态概括）
+
+    Args:
+      old_comments: 旧弹幕
+      new_comments: 新弹幕
+
+    Returns:
+      场景快照文本
+    """
+    total_responses = self.database.get_response_count()
+    total_comments = self.database.get_comment_count()
+
+    # 活跃用户（本轮弹幕中的不同用户）
+    all_comments = old_comments + new_comments
+    active_users = {c.nickname for c in all_comments}
+
+    # 活跃话题数
+    topic_count = 0
+    if self._topic_manager:
+      topic_count = self._topic_manager.table.count()
+
+    parts = [f"【当前直播状态】已回复 {total_responses} 次"]
+    parts.append(f"累计弹幕 {total_comments} 条")
+    parts.append(f"本轮 {len(active_users)} 位观众参与")
+    if topic_count > 0:
+      parts.append(f"{topic_count} 个活跃话题")
+
+    return "，".join(parts)
+
   async def _generate_response(
     self,
     old_comments: list[Comment],
@@ -588,10 +623,14 @@ class StreamingStudio:
     all_comments = old_comments + new_comments
     rag_queries = [c.content for c in all_comments if c.content.strip()]
 
+    # 场景快照
+    scene_context = self._build_scene_context(old_comments, new_comments)
+
     try:
       content = await self.llm_wrapper.achat(
         prompt, save_history=False,
         rag_queries=rag_queries, topic_context=topic_context,
+        scene_context=scene_context,
       )
     except Exception as e:
       print(f"LLM 调用错误: {e}")
@@ -633,6 +672,9 @@ class StreamingStudio:
     all_comments = old_comments + new_comments
     rag_queries = [c.content for c in all_comments if c.content.strip()]
 
+    # 场景快照
+    scene_context = self._build_scene_context(old_comments, new_comments)
+
     reply_ids = tuple(c.id for c in new_comments)
     response_id = str(uuid.uuid4())
     accumulated = ""
@@ -641,6 +683,7 @@ class StreamingStudio:
       async for chunk in self.llm_wrapper.achat_stream(
         prompt, save_history=False,
         rag_queries=rag_queries, topic_context=topic_context,
+        scene_context=scene_context,
       ):
         accumulated += chunk
         rc = ResponseChunk(

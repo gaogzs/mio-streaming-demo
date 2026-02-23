@@ -48,6 +48,10 @@ class RetrievalConfig:
   weight_static: float = 1.2
   weighted_overfetch_multiplier: int = 3  # 多取回的倍数，再加权重排
 
+  # 是否在 prompt 中附带记忆产生时的原回复
+  include_response_in_active: bool = True
+  include_response_in_temporary: bool = False
+
 
 @dataclass(frozen=True)
 class EmbeddingConfig:
