@@ -29,6 +29,8 @@ def run(
   port: int = 8080,
   enable_global_memory: bool = False,
   enable_topic_manager: bool = False,
+  enable_jargon_tags: bool = False,
+  jargon_mode: str = "reference",
 ) -> None:
   """
   启动调试控制台
@@ -40,6 +42,8 @@ def run(
     port: 监听端口
     enable_global_memory: 是否开启全局记忆（持久化到文件）
     enable_topic_manager: 是否启用话题管理器
+    enable_jargon_tags: 是否启用黑话与标签系统
+    jargon_mode: 黑话系统模式（reference/polish）
   """
   # 初始化直播间
   studio = StreamingStudio(
@@ -49,6 +53,8 @@ def run(
     enable_memory=True,
     enable_global_memory=enable_global_memory,
     enable_topic_manager=enable_topic_manager,
+    enable_jargon_tags=enable_jargon_tags,
+    jargon_mode=jargon_mode,
   )
   studio.enable_streaming = True
   collector = StateCollector(studio)

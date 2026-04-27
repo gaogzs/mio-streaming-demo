@@ -44,6 +44,14 @@ def main():
     "--topic-manager", action="store_true", default=True,
     help="启用话题管理器（追踪和管理直播话题，默认关闭）",
   )
+  parser.add_argument(
+    "--jargon-tags", action="store_true", default=False,
+    help="启用黑话与标签系统（默认关闭）",
+  )
+  parser.add_argument(
+    "--jargon-mode", default="reference", choices=["reference", "polish"],
+    help="黑话系统模式（默认 reference）",
+  )
 
   args = parser.parse_args()
 
@@ -61,6 +69,8 @@ def main():
       port=args.port,
       enable_global_memory=args.global_memory,
       enable_topic_manager=args.topic_manager,
+      enable_jargon_tags=args.jargon_tags,
+      jargon_mode=args.jargon_mode,
     )
   except KeyboardInterrupt:
     print("\n正在关闭...")

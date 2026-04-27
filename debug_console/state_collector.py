@@ -47,9 +47,15 @@ class StateCollector:
     except Exception:
       topic_state = None
 
+    try:
+      jargon_state = self._studio.jargon_debug_state()
+    except Exception:
+      jargon_state = None
+
     return {
       "studio": studio_state,
       "llm": llm_state,
       "memory": memory_state,
       "topics": topic_state,
+      "jargon_tags": jargon_state,
     }

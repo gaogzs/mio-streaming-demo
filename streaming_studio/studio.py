@@ -43,6 +43,8 @@ class StreamingStudio:
     enable_memory: bool = False,
     enable_global_memory: bool = False,
     enable_topic_manager: bool = False,
+    enable_jargon_tags: bool = False,
+    jargon_mode: str = "reference",
     # 高级定制
     llm_wrapper: Optional[LLMWrapper] = None,
     database: Optional[CommentDatabase] = None,
@@ -58,12 +60,15 @@ class StreamingStudio:
       enable_memory: 是否启用分层记忆系统
       enable_global_memory: 是否开启全局记忆（持久化到文件），需同时开启 enable_memory
       enable_topic_manager: 是否启用话题管理器（追踪、分类和管理直播话题）
+      enable_jargon_tags: 是否启用黑话与标签系统（异步学习 + prompt 参考）
+      jargon_mode: 黑话系统模式（reference/polish）
       llm_wrapper: 自定义 LLM 封装（高级用户，传入后忽略 persona/model_type/enable_memory）
       database: 自定义数据库（高级用户）
       config: 自定义行为配置（高级用户）
     """
     self._persona = persona
     self._enable_global_memory = enable_global_memory
+    self._jargon_mode = jargon_mode
 
     if enable_global_memory and not enable_memory:
       raise ValueError("enable_global_memory=True 需要同时开启 enable_memory=True")
@@ -141,6 +146,16 @@ class StreamingStudio:
         database=self.database,
       )
 
+    # 黑话与标签管理器
+    self._jargon_tags = None
+    if enable_jargon_tags:
+      from jargon_tags import JargonTagsManager, JargonTagsConfig
+      self._jargon_tags = JargonTagsManager(
+        persona=persona,
+        database=self.database,
+        config=JargonTagsConfig(mode=jargon_mode),
+      )
+
     # Prompt 模板
     _loader = PromptLoader()
     self._comment_headers = _loader.load_headers("studio/comment_headers.txt")
@@ -177,6 +192,10 @@ class StreamingStudio:
     # 转发给话题管理器（非阻塞）
     if self._topic_manager:
       self._topic_manager.on_comment(comment)
+
+    # 转发给黑话与标签管理器（非阻塞）
+    if self._jargon_tags:
+      self._jargon_tags.on_comment(comment)
 
   async def get_response(self, timeout: Optional[float] = None) -> Optional[StreamerResponse]:
     """
@@ -260,6 +279,10 @@ class StreamingStudio:
     if self._topic_manager:
       await self._topic_manager.start()
 
+    # 启动黑话与标签管理器
+    if self._jargon_tags:
+      await self._jargon_tags.start()
+
     self._main_task = asyncio.create_task(self._main_loop())
 
   async def stop(self) -> None:
@@ -274,6 +297,10 @@ class StreamingStudio:
     # 停止话题管理器
     if self._topic_manager:
       await self._topic_manager.stop()
+
+    # 停止黑话与标签管理器
+    if self._jargon_tags:
+      await self._jargon_tags.stop()
 
     # 停止记忆定时任务
     await self.llm_wrapper.stop_memory()
@@ -332,7 +359,12 @@ class StreamingStudio:
         if not old_comments and not new_comments:
           continue
 
-        if self.enable_streaming:
+        # 润色模式需要先拿到完整原回复再二次改写，故强制走非流式
+        use_streaming = self.enable_streaming and not (
+          self._jargon_tags is not None and self._jargon_tags.is_polish_mode
+        )
+
+        if use_streaming:
           response = await self._generate_response_streaming(
             old_comments, new_comments,
           )
@@ -356,6 +388,18 @@ class StreamingStudio:
             all_comments = old_comments + new_comments
             task = asyncio.create_task(
               self._topic_manager.post_reply(
+                self._last_prompt or "",
+                response.content,
+                all_comments,
+              )
+            )
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
+
+          if self._jargon_tags:
+            all_comments = old_comments + new_comments
+            task = asyncio.create_task(
+              self._jargon_tags.post_reply(
                 self._last_prompt or "",
                 response.content,
                 all_comments,
@@ -607,11 +651,19 @@ class StreamingStudio:
     # 话题管理器：获取标注和上下文
     annotations = None
     topic_context = None
+    jargon_context = None
     interaction_targets = None
     if self._topic_manager:
       annotations = self._topic_manager.get_comment_annotations()
       topic_context = self._topic_manager.format_context(old_comments, new_comments)
       interaction_targets = self._select_interaction_targets(new_comments)
+
+    if self._jargon_tags:
+      jargon_context = self._jargon_tags.format_context(old_comments + new_comments)
+
+    merged_topic_context = "\n\n".join(
+      part for part in [jargon_context, topic_context] if part
+    )
 
     prompt = self._format_comments_for_prompt(
       old_comments, new_comments, annotations, interaction_targets,
@@ -628,12 +680,16 @@ class StreamingStudio:
     try:
       content = await self.llm_wrapper.achat(
         prompt, save_history=False,
-        rag_queries=rag_queries, topic_context=topic_context,
+        rag_queries=rag_queries, topic_context=merged_topic_context,
         scene_context=scene_context,
       )
     except Exception as e:
       print(f"LLM 调用错误: {e}")
       return None
+
+    # 润色模式：在完整回复基础上进行二次改写
+    if self._jargon_tags and self._jargon_tags.is_polish_mode:
+      content = await self._jargon_tags.polish_response(content, all_comments)
 
     reply_ids = tuple(c.id for c in new_comments)
     return StreamerResponse(content=content, reply_to=reply_ids)
@@ -656,11 +712,19 @@ class StreamingStudio:
     # 话题管理器：获取标注和上下文
     annotations = None
     topic_context = None
+    jargon_context = None
     interaction_targets = None
     if self._topic_manager:
       annotations = self._topic_manager.get_comment_annotations()
       topic_context = self._topic_manager.format_context(old_comments, new_comments)
       interaction_targets = self._select_interaction_targets(new_comments)
+
+    if self._jargon_tags:
+      jargon_context = self._jargon_tags.format_context(old_comments + new_comments)
+
+    merged_topic_context = "\n\n".join(
+      part for part in [jargon_context, topic_context] if part
+    )
 
     prompt = self._format_comments_for_prompt(
       old_comments, new_comments, annotations, interaction_targets,
@@ -681,7 +745,7 @@ class StreamingStudio:
     try:
       async for chunk in self.llm_wrapper.achat_stream(
         prompt, save_history=False,
-        rag_queries=rag_queries, topic_context=topic_context,
+        rag_queries=rag_queries, topic_context=merged_topic_context,
         scene_context=scene_context,
       ):
         accumulated += chunk
@@ -782,6 +846,7 @@ class StreamingStudio:
       "total_comments": self.database.get_comment_count(),
       "total_responses": self.database.get_response_count(),
       "topic_manager_enabled": self._topic_manager is not None,
+      "jargon_tags_enabled": self._jargon_tags is not None,
     }
 
   def topic_debug_state(self) -> Optional[dict]:
@@ -794,6 +859,17 @@ class StreamingStudio:
     if self._topic_manager is None:
       return None
     return self._topic_manager.debug_state()
+
+  def jargon_debug_state(self) -> Optional[dict]:
+    """
+    获取黑话与标签系统的调试状态快照
+
+    Returns:
+      黑话与标签系统状态字典，未启用时返回 None
+    """
+    if self._jargon_tags is None:
+      return None
+    return self._jargon_tags.debug_state()
 
   def get_stats(self) -> dict:
     """

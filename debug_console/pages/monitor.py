@@ -25,6 +25,7 @@ def create_monitor_page(collector: StateCollector) -> None:
       _update_studio_card(containers.get("studio"), state.get("studio"))
       _update_memory_card(containers.get("memory"), state.get("memory"))
       _update_topic_card(containers.get("topics"), state.get("topics"))
+      _update_jargon_card(containers.get("jargon"), state.get("jargon_tags"))
       _update_llm_card(containers.get("llm"), state.get("llm"))
       _update_prompt_card(containers.get("prompt"), state.get("studio"))
     except Exception:
@@ -45,6 +46,9 @@ def create_monitor_page(collector: StateCollector) -> None:
 
     # 话题管理器（放在 prompt 下方）
     containers["topics"] = _build_topic_card()
+
+    # 黑话与标签系统
+    containers["jargon"] = _build_jargon_card()
 
     # 记忆系统
     containers["memory"] = _build_memory_card()
@@ -129,6 +133,23 @@ def _build_llm_card() -> dict:
       refs["history"] = ui.label()
       refs["memory"] = ui.label()
       refs["bg_tasks"] = ui.label()
+  return refs
+
+
+def _build_jargon_card() -> dict:
+  """构建黑话与标签系统卡片"""
+  refs = {}
+  with ui.card().classes("w-full"):
+    ui.label("黑话与标签系统").classes("text-lg font-bold")
+    ui.separator()
+    with ui.column().classes("gap-1"):
+      refs["status"] = ui.label()
+      refs["counts"] = ui.label()
+      refs["active_tags"] = ui.label()
+      refs["questions"] = ui.label()
+      refs["indirect_hints"] = ui.label()
+      refs["pending_comments"] = ui.label()
+      refs["last_decision"] = ui.label()
   return refs
 
 
@@ -312,6 +333,52 @@ def _update_llm_card(refs: dict, state: dict) -> None:
   refs["history"].text = f"对话历史: {state['history_length']} 轮"
   refs["memory"].text = f"记忆功能: {'已启用' if state['has_memory'] else '未启用'}"
   refs["bg_tasks"].text = f"后台任务: {state['background_tasks']}"
+
+
+def _update_jargon_card(refs: dict, state: dict) -> None:
+  """更新黑话与标签系统卡片"""
+  if not refs:
+    return
+
+  if state is None:
+    refs["status"].text = "黑话与标签系统未启用"
+    refs["counts"].text = ""
+    refs["active_tags"].text = ""
+    refs["questions"].text = ""
+    refs["indirect_hints"].text = ""
+    refs["pending_comments"].text = ""
+    refs["last_decision"].text = ""
+    return
+
+  status = "运行中" if state.get("running") else "已停止"
+  mode = state.get("mode", "unknown")
+  vector = "向量已启用" if state.get("vector_enabled") else "仅精确匹配"
+  refs["status"].text = f"状态: {status}  模式: {mode}  检索: {vector}"
+  refs["counts"].text = (
+    f"已知黑话: {state.get('known_jargon_count', 0)}  "
+    f"待解明: {state.get('pending_jargon_count', 0)}  "
+    f"标签: {state.get('tag_count', 0)}"
+  )
+  active_tags = "、".join(state.get("active_tags", [])) or "无"
+  refs["active_tags"].text = f"活跃标签: {active_tags}"
+
+  questions = "、".join(state.get("current_questions", [])) or "无"
+  refs["questions"].text = f"本轮拟追问: {questions}"
+  hints = "、".join(state.get("indirect_question_hints", [])) or "无"
+  refs["indirect_hints"].text = f"间接提问提示: {hints}"
+  refs["pending_comments"].text = f"待分析评论: {state.get('pending_comments', 0)}"
+
+  last = state.get("last_decision")
+  if not last:
+    refs["last_decision"].text = "最近判官结论: 无"
+  else:
+    refs["last_decision"].text = (
+      "最近判官结论: "
+      f"+pending {last.get('new_pending_count', 0)}, "
+      f"resolved {last.get('resolved_count', 0)}, "
+      f"revised {last.get('revised_count', 0)}; "
+      f"{last.get('notes', '')}"
+    )
 
 
 def _update_prompt_card(refs: dict, state: dict) -> None:
