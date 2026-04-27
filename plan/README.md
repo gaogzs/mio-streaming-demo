@@ -76,6 +76,7 @@
 | streaming_studio | 直播间核心逻辑 | [streaming_studio.md](streaming_studio.md) |
 | connection | WebSocket 服务 | [connection.md](connection.md) |
 | debug_console | NiceGUI 调试控制台 | [debug_console.md](debug_console.md) |
+| jargon_tags | 黑话与标签系统 | [jargon_tags.md](jargon_tags.md) |
 
 ## 快速开始
 
