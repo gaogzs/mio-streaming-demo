@@ -212,9 +212,11 @@ class JargonStore:
   def _build_vector_doc(entry: JargonEntry) -> str:
     """构建向量索引文档"""
     tags = "、".join(entry.tags) if entry.tags else "无"
+    examples = " / ".join(entry.examples) if entry.examples else "无"
     return (
       f"黑话: {entry.phrase}\n"
       f"简要含义: {entry.brief}\n"
       f"详细说明: {entry.details}\n"
+      f"例句对照: {examples}\n"
       f"标签: {tags}"
     )

@@ -22,11 +22,11 @@ class ModelType(Enum):
 # 预设远程模型名称映射
 REMOTE_MODELS = {
   ModelType.OPENAI: {
-    "large": "gpt-5.2",
-    "small": "gpt-5-mini",
+    "large": "gpt-5.5",
+    "small": "gpt-5.4-mini",
   },
   ModelType.ANTHROPIC: {
-    "large": "claude-opus-4.6",
+    "large": "claude-opus-4.7",
     "small": "claude-haiku-4.5",
   },
 }

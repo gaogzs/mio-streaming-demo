@@ -15,6 +15,7 @@ class JargonEntry:
   brief: str
   details: str
   tags: tuple[str, ...] = field(default_factory=tuple)
+  examples: tuple[str, ...] = field(default_factory=tuple)
   status: str = "known"
   confidence: float = 0.5
   source_refs: tuple[str, ...] = field(default_factory=tuple)
