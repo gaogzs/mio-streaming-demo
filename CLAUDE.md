@@ -62,6 +62,17 @@ prompts/              # 通用提示词
   prompt_loader.py    #   PromptLoader（加载 base_instruction + 委托 PersonaLoader）
   base_instruction.txt #  主播基础指令
 
+jargon_tags/          # 黑话与标签机制模块
+  config.py           #   黑话标签生成、权重衰变与过滤配置
+  models.py           #   黑话记录、标签缓存、解析状态的数据类
+  archive.py          #   基于JSON的脱水导入/导出
+  store.py            #   带权重的精确与向量复合检索本地持久化仓库
+  retriever.py        #   带权重的分发与提取处理器
+  judge.py            #   对新的黑话及待定词条进行判断
+  tag_judge.py        #   自动识别观众群体的标签判官
+  formatter.py        #   返回整合后的黑话提示注入文本
+  manager.py          #   主控制器，生命周期维护及自动时间权重衰变
+
 topic_manager/        # 话题管理器（可选模块，enable_topic_manager 开启）
   config.py           #   TopicManagerConfig（所有可调参数）
   models.py           #   Topic 数据类（frozen dataclass）
@@ -78,10 +89,12 @@ connection/           # WebSocket层：StreamServiceHost、多客户端订阅
 debug_console/        # NiceGUI 本地调试控制台
   app.py              #   应用入口 + 顶级菜单路由
   state_collector.py  #   聚合各模块 debug_state() 的状态收集器
+  auto_viewer.py      #   集成大模型支持的高级连续性虚拟观众与简单观众引擎
   pages/
     monitor.py        #   监控面板（实时显示记忆/弹幕/prompt/定时器状态）
-    chat.py           #   模拟直播间（单用户/多用户随机身份模式）
+    chat.py           #   模拟直播间（单用户/多用户/带上下文连续性的进阶AI观众）
 secrets/              # API密钥等敏感信息(gitignore)
+scripts/              # 开发人员预处理或测试脚本（基于Agent查询生成初始本地数据等）
 plan/                 # 工作计划文档
 spec/                 # 项目规范(只读，不要修改)
 ```
