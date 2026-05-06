@@ -209,6 +209,29 @@ class JargonStore:
     return result
 
   @staticmethod
+  def decay_all_weights(self, coefficient_per_day: float, archive_threshold: float) -> None:
+    """
+    执行个体权重衰减，基于距上次衰减逝去的时间（以天计）。
+    当 weight 降到 archive_threshold 以下时封存。
+    """
+    now = datetime.now()
+    for entry_id, entry in list(self._known.items()):
+      days_passed = (now - entry.last_decay_at).total_seconds() / 86400.0
+      if days_passed > 0.01:
+        decay_factor = coefficient_per_day ** days_passed
+        new_weight = round(entry.weight * decay_factor, 4)
+        new_status = entry.status
+        if new_weight < archive_threshold and new_status == "known":
+          new_status = "archived"
+        saved = replace(
+          entry, 
+          weight=new_weight, 
+          status=new_status,
+          last_decay_at=now
+        )
+        self._known[entry_id] = saved
+
+  @staticmethod
   def _build_vector_doc(entry: JargonEntry) -> str:
     """构建向量索引文档"""
     tags = "、".join(entry.tags) if entry.tags else "无"

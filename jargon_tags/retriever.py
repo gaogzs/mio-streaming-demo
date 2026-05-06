@@ -62,8 +62,12 @@ class JargonRetriever:
 
     for entry_id, base_score in score_map.items():
       entry = entry_map[entry_id]
+      
+      if entry.status == "archived":
+        continue
+      
       entry_tags = set(entry.tags)
-      score = base_score
+      score = base_score * entry.weight
 
       if not entry_tags:
         fallback.append((entry, score))

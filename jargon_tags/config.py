@@ -37,3 +37,7 @@ class JargonTagsConfig:
 
   # 已知条目修订阈值
   revision_confidence_threshold: float = 0.85
+
+  # 衰减策略
+  weight_decay_coefficient: float = 0.95  # 以天为单位的衰减底数
+  weight_archive_threshold: float = 0.05  # 当 weight 衰减到低于该值时转入归档

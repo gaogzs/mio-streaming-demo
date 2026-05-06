@@ -174,6 +174,12 @@ class JargonTagsManager:
     _ = response
     self._learn_from_comments(comments)
     self._promote_abandoned_pending()
+    
+    # 执行时间权重衰减（计算时间差）
+    self._store.decay_all_weights(
+        self._config.weight_decay_coefficient,
+        self._config.weight_archive_threshold
+    )
 
   async def polish_response(
     self,

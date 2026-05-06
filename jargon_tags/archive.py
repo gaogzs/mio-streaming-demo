@@ -23,6 +23,10 @@ def export_known_jargons(path: str, entries: list[JargonEntry]) -> None:
       "examples": list(e.examples),
       "status": e.status,
       "confidence": e.confidence,
+        "weight": e.weight,
+        "last_decay_at": e.last_decay_at.isoformat(),
+        "weight": e.weight,
+        "last_decay_at": e.last_decay_at.isoformat(),
       "source_refs": list(e.source_refs),
       "version": e.version,
       "created_at": e.created_at.isoformat(),
@@ -44,6 +48,10 @@ def export_tags(path: str, entries: list[TagEntry]) -> None:
       "examples": list(e.examples),
       "related_tags": list(e.related_tags),
       "confidence": e.confidence,
+        "weight": e.weight,
+        "last_decay_at": e.last_decay_at.isoformat(),
+        "weight": e.weight,
+        "last_decay_at": e.last_decay_at.isoformat(),
       "created_at": e.created_at.isoformat(),
       "updated_at": e.updated_at.isoformat(),
     }
@@ -82,6 +90,12 @@ def import_known_jargons(path: str) -> list[JargonEntry]:
         examples=_to_str_tuple(item.get("examples", [])),
         status=str(item.get("status", "known")),
         confidence=_to_float(item.get("confidence", 0.5), 0.5),
+          weight=_to_float(item.get("weight", 1.0), 1.0),
+          last_decay_at=_to_datetime(item.get("last_decay_at")),
+
+        weight=_to_float(item.get("weight", 1.0), 1.0),
+        last_decay_at=_to_datetime(item.get("last_decay_at")),
+
         source_refs=_to_str_tuple(item.get("source_refs", [])),
         version=_to_int(item.get("version", 1), 1),
         created_at=_to_datetime(item.get("created_at")),
@@ -118,6 +132,12 @@ def import_tags(path: str) -> list[TagEntry]:
         examples=_to_str_tuple(item.get("examples", [])),
         related_tags=_to_str_tuple(item.get("related_tags", [])),
         confidence=_to_float(item.get("confidence", 0.5), 0.5),
+          weight=_to_float(item.get("weight", 1.0), 1.0),
+          last_decay_at=_to_datetime(item.get("last_decay_at")),
+
+        weight=_to_float(item.get("weight", 1.0), 1.0),
+        last_decay_at=_to_datetime(item.get("last_decay_at")),
+
         created_at=_to_datetime(item.get("created_at")),
         updated_at=_to_datetime(item.get("updated_at")),
       )

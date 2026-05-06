@@ -18,6 +18,8 @@ class JargonEntry:
   examples: tuple[str, ...] = field(default_factory=tuple)
   status: str = "known"
   confidence: float = 0.5
+  weight: float = 1.0
+  last_decay_at: datetime = field(default_factory=datetime.now)
   source_refs: tuple[str, ...] = field(default_factory=tuple)
   version: int = 1
   created_at: datetime = field(default_factory=datetime.now)
