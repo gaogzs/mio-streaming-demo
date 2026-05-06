@@ -30,19 +30,23 @@ class AutoViewerConfig:
     min_interval: 最小生成间隔（秒）
     max_interval: 最大生成间隔（秒）
     max_responses_context: 主播回复上下文数量（最近 N 条）
+    max_comments_context: 观众弹幕上下文数量（最近 N 条），仅高级模式使用
     viewer_pool_size: 固定观众池大小
+    viewer_rotate_interval: 观众轮换间隔（秒）
   """
   min_interval: float = 10.0
   max_interval: float = 15.0
   max_responses_context: int = 5
+  max_comments_context: int = 8
   viewer_pool_size: int = 6
   viewer_rotate_interval: float = 60.0
   """观众轮换间隔（秒），每隔这么久随机换掉 1-2 个观众"""
 
 
-def _load_prompt() -> str:
+def _load_prompt(mode: str) -> str:
   """加载虚拟观众提示词"""
-  path = Path(__file__).parent.parent / "prompts" / "auto_viewer.txt"
+  filename = "advanced_auto_viewer.txt" if mode == "advanced" else "auto_viewer.txt"
+  path = Path(__file__).parent.parent / "prompts" / filename
   return path.read_text(encoding="utf-8")
 
 
@@ -50,13 +54,14 @@ class AutoViewer:
   """
   自动观众引擎
 
-  监听主播回复，定时调用小模型生成虚拟观众弹幕。
+  定时调用小模型生成虚拟观众弹幕。支持简单与高级（连续性上下文）模式。
   """
 
   def __init__(
     self,
     studio: StreamingStudio,
     config: AutoViewerConfig = AutoViewerConfig(),
+    mode: str = "simple",
   ):
     """
     初始化自动观众引擎
@@ -64,11 +69,14 @@ class AutoViewer:
     Args:
       studio: 直播间实例
       config: 配置对象
+      mode: 运行模式 ("simple" 或 "advanced")
     """
     self.studio = studio
     self.config = config
+    self._mode = mode
+    self.topic_guidance = ""
     self._model = ModelProvider.remote_small()
-    self._prompt_template = _load_prompt()
+    self._prompt_template = _load_prompt(self._mode)
     self._recent_responses: list[str] = []
     self._running = False
     self._task: Optional[asyncio.Task] = None
@@ -80,6 +88,17 @@ class AutoViewer:
       _random_identity() for _ in range(config.viewer_pool_size)
     ]
     self._time_since_rotate: float = 0.0
+
+  @property
+  def mode(self) -> str:
+    return self._mode
+  
+  @mode.setter
+  def mode(self, value: str) -> None:
+    if value in ["simple", "advanced"] and value != self._mode:
+      self._mode = value
+      self._prompt_template = _load_prompt(self._mode)
+      logger.info(f"自动观众模式已切换至 {self._mode}")
 
   @property
   def is_running(self) -> bool:
@@ -175,9 +194,17 @@ class AutoViewer:
   async def _generate_and_send(self) -> None:
     """调用小模型生成弹幕并发送"""
     context = self._build_context()
+    
+    if self._mode == "advanced":
+      human_prompt = f"上下文信息：\n{context}\n\n请生成观众弹幕："
+      if self.topic_guidance:
+        human_prompt = f"话题引导：{self.topic_guidance}\n\n" + human_prompt
+    else:
+      human_prompt = f"主播最近发言：\n{context}\n\n请生成观众弹幕："
+
     messages = [
       SystemMessage(content=self._prompt_template),
-      HumanMessage(content=f"主播最近发言：\n{context}\n\n请生成观众弹幕："),
+      HumanMessage(content=human_prompt),
     ]
 
     try:
@@ -210,11 +237,34 @@ class AutoViewer:
 
   def _build_context(self) -> str:
     """
-    构建主播回复上下文
+    构建上下文
 
     Returns:
-      格式化的最近回复文本
+      格式化的上下文文本
     """
+    if self._mode == "advanced":
+      try:
+        # 获取近期混合记录并按时间排序构建上下文
+        comments = self.studio.db.get_recent_comments(self.config.max_comments_context)
+        responses = self.studio.db.get_recent_responses(self.config.max_responses_context)
+        
+        # 简单混合排序（基于时间戳）
+        mixed = []
+        for x in comments:
+           mixed.append((x.timestamp, f"[观众] {x.nickname}: {x.content}"))
+        for x in responses:
+           mixed.append((x.timestamp, f"[主播]: {x.content}"))
+        
+        mixed.sort(key=lambda t: t[0])
+        if not mixed:
+           return "（暂无历史）"
+        return "\n".join("- " + item[1] for item in mixed)
+      except Exception as e:
+        logger.error("读取数据库失败，退回使用缓存: %s", e)
+        # 发生异常时退回
+        pass
+
+    # 简单模式 / 取备用
     return "\n".join(
       f"- {resp}" for resp in self._recent_responses
     )

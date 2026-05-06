@@ -106,54 +106,16 @@ def create_chat_page(studio: StreamingStudio) -> None:
           await auto_viewer.stop()
           auto_label.text = "已停止"
           auto_label.classes(replace="text-xs text-gray-400")
+            
+        def on_auto_mode_change(e):
+          auto_viewer.mode = e.value
+          
+        def on_topic_change(e):
+          auto_viewer.topic_guidance = e.value
 
-      auto_switch = ui.switch("自动观众", on_change=on_auto_toggle).props("dense")
-      auto_label = ui.label("已停止").classes("text-xs text-gray-400")
-
-    # ── 用户模式切换 ──
-    with ui.row().classes("w-full items-center gap-4 flex-wrap"):
-      def on_mode_change(e):
-        is_multi = e.value == "multi"
-        state["multi_user"] = is_multi
-        single_inputs.set_visibility(not is_multi)
-        identity_preview.set_visibility(is_multi)
-        if is_multi:
-          state["next_id"], state["next_nick"] = _random_identity()
-          preview_label.text = (
-            f"下一个身份: {state['next_nick']} ({state['next_id']})"
-          )
-
-      ui.toggle(
-        {"single": "单用户", "multi": "多用户（随机）"},
-        value="multi",
-        on_change=on_mode_change,
-      ).props("dense")
-
-      single_inputs = ui.row().classes("gap-2")
-      single_inputs.set_visibility(False)
-      with single_inputs:
-        uid_input = (
-          ui.input("用户ID", value="test_user").props("dense").classes("w-32")
-        )
-        nick_input = (
-          ui.input("昵称", value="测试用户").props("dense").classes("w-32")
-        )
-
-        def on_uid_change(e):
-          state["user_id"] = e.args
-        def on_nick_change(e):
-          state["nickname"] = e.args
-        uid_input.on("update:model-value", on_uid_change)
-        nick_input.on("update:model-value", on_nick_change)
-
-      identity_preview = ui.row()
-      with identity_preview:
-        preview_label = ui.label(
-          f"下一个身份: {state['next_nick']} ({state['next_id']})"
-        ).classes("text-sm text-gray-500")
-
-    ui.separator()
-
+        auto_switch = ui.switch("自动观众", on_change=on_auto_toggle).props("dense")
+        auto_mode_select = ui.select({"simple": "普通", "advanced": "连续性（高级）"}, value="simple", on_change=on_auto_mode_change).props("dense")
+        auto_topic_input = ui.input("互动引导", placeholder="如：聊聊游戏", on_change=on_topic_change).props("dense").classes("w-32")
     # ── 左右分栏 ──
     with ui.row().classes("w-full flex-1 gap-4"):
 
