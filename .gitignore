@@ -213,3 +213,6 @@ data/
 
 # Memories
 archived_memories/
+
+# Cache
+.vscode/

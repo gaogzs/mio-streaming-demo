@@ -32,7 +32,7 @@ def clean_json(text: str) -> str:
 
 async def generate_tags(model_or_agent, existing_tags: list[str]) -> str:
   prompt = f"""
-  你是虚拟直播间设计专家。请生成 5 个虚拟直播间常见的观众群体或人设标签。
+  你是虚拟直播间设计专家。请生成 3 个网络社区中常见的观众群体或人设标签。
   输出必须是纯 JSON 数组格式，不要包含 Markdown 代码块标记（如 ```json）。
 
   【已有标签，不要重复以下标签】：
@@ -41,7 +41,7 @@ async def generate_tags(model_or_agent, existing_tags: list[str]) -> str:
   输出 JSON Schema:
   [
     {{
-      "name": "标签名（如：纯良粉丝、乐子人、技术宅、二次元等）",
+      "name": "标签名（如：贴吧老哥、乐子人、二次元等）",
       "definition": "该群体的简要定义与行为特征",
       "examples": ["典型弹幕例句1", "典型弹幕例句2"],
       "related_tags": ["相关标签1", "相关标签2"],
@@ -63,7 +63,7 @@ async def generate_tags(model_or_agent, existing_tags: list[str]) -> str:
 
 async def generate_jargons(model_or_agent, tag_names: list[str], existing_jargons: list[str]) -> str:
   prompt = f"""
-  基于以下标签/群体，请生成 10 个近期虚拟直播间或网络上常见的黑话（网络流行语或直播梗）。
+  基于以下标签/群体，请生成 20 个近期网络直播中或网络上常见的黑话（网络流行语或直播梗）。
   如果带有搜索工具，请先自行搜索“近期网络直播流行语 黑话 梗”以获取最新信息。
   
   可用人群标签：{tag_names}

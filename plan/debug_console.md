@@ -14,6 +14,7 @@
 debug_console/          # 新顶层模块
   __init__.py           #   导出 DebugConsole
   app.py                #   NiceGUI 应用入口 + 顶级菜单路由
+  auto_viewer.py        #   集成大模型支持的高级连续性虚拟观众与简单观众引擎
   pages/
     __init__.py
     monitor.py          #   监控面板页面
