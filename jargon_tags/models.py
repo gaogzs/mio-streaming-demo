@@ -71,7 +71,9 @@ class JargonDecision:
   """一次判官分析的摘要结果"""
 
   new_pending_count: int = 0
+  new_pending_phrases: tuple[str, ...] = field(default_factory=tuple)
   resolved_count: int = 0
+  resolved_phrases: tuple[str, ...] = field(default_factory=tuple)
   revised_count: int = 0
   notes: str = ""
   analyzed_at: datetime = field(default_factory=datetime.now)

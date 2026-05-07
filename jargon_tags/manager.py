@@ -79,6 +79,7 @@ class JargonTagsManager:
     self._tag_state = StreamerTagState(active_tags=("普通网民",))
     self._current_questions: tuple[str, ...] = tuple()
     self._indirect_question_hints: tuple[str, ...] = tuple()
+    self._last_retrieved_jargons: tuple[str, ...] = tuple()
 
     self._decision_log: list[JargonDecision] = []
     self._pending_comments: list["Comment"] = []
@@ -133,6 +134,8 @@ class JargonTagsManager:
       active_tags=self._tag_state.active_tags,
       top_k=self._config.retrieval_top_k,
     )
+    
+    self._last_retrieved_jargons = tuple(e.phrase for e in entries)
 
     pending_items = self._store.list_pending()
     pending_items = [
@@ -160,6 +163,10 @@ class JargonTagsManager:
     return format_reference_context(
       entries=entries,
       active_tags=tuple(active_tag_entries),
+      pending_to_ask=to_ask,
+      indirect_hints=self._indirect_question_hints,
+    )
+
   async def post_reply(
     self,
     prompt: str,
@@ -209,6 +216,7 @@ class JargonTagsManager:
       active_tags=self._tag_state.active_tags,
       top_k=self._config.retrieval_top_k,
     )
+    self._last_retrieved_jargons = tuple(e.phrase for e in entries)
 
     if not entries:
       return original_response
@@ -284,12 +292,15 @@ class JargonTagsManager:
       "active_tags": list(self._tag_state.active_tags),
       "current_questions": list(self._current_questions),
       "indirect_question_hints": list(self._indirect_question_hints),
+      "last_retrieved_jargons": list(self._last_retrieved_jargons),
       "vector_enabled": self._store.vector_enabled,
       "pending_comments": len(self._pending_comments),
       "last_decision": (
         {
           "new_pending_count": self._decision_log[-1].new_pending_count,
+          "new_pending_phrases": list(self._decision_log[-1].new_pending_phrases),
           "resolved_count": self._decision_log[-1].resolved_count,
+          "resolved_phrases": list(self._decision_log[-1].resolved_phrases),
           "revised_count": self._decision_log[-1].revised_count,
           "notes": self._decision_log[-1].notes,
           "analyzed_at": self._decision_log[-1].analyzed_at.isoformat(),
@@ -319,12 +330,13 @@ class JargonTagsManager:
         await self._run_llm_judges(comments)
         self._promote_abandoned_pending()
 
-        self._decision_log.append(
-          JargonDecision(
-            notes=f"规则判官分析完成，处理评论 {len(comments)} 条",
-            analyzed_at=datetime.now(),
-          )
-        )
+        # 仅为记录处理了多少条（具体新增由后续逻辑添加）
+        # self._decision_log.append(
+        #   JargonDecision(
+        #     notes=f"分析循环完成，处理评论 {len(comments)} 条",
+        #     analyzed_at=datetime.now(),
+        #   )
+        # )
       except asyncio.CancelledError:
         break
       except Exception as exc:
@@ -518,10 +530,15 @@ class JargonTagsManager:
       revised += 1
 
     if new_pending or resolved or revised:
+      # Note: This is from LLM outputs
+      new_pending_phrases = tuple(item.get("phrase", "") for item in data.get("new_pending", []))
+      resolved_phrases = tuple(item.get("phrase", "") for item in data.get("resolved", []))
       self._decision_log.append(
         JargonDecision(
           new_pending_count=new_pending,
+          new_pending_phrases=new_pending_phrases,
           resolved_count=resolved,
+          resolved_phrases=resolved_phrases,
           revised_count=revised,
           notes="LLM 黑话判官结果已应用",
           analyzed_at=datetime.now(),
@@ -622,6 +639,7 @@ class JargonTagsManager:
       return
 
     new_pending_count = 0
+    new_pending_phrases_list = []
     for comment in comments:
       candidates = extract_candidate_phrases(comment.content)
       for phrase in candidates:
@@ -643,11 +661,13 @@ class JargonTagsManager:
           )
         )
         new_pending_count += 1
+        new_pending_phrases_list.append(phrase)
 
     if new_pending_count > 0:
       self._decision_log.append(
         JargonDecision(
           new_pending_count=new_pending_count,
+          new_pending_phrases=tuple(new_pending_phrases_list),
           notes=f"新增待解明黑话 {new_pending_count} 条",
           analyzed_at=datetime.now(),
         )
@@ -656,6 +676,7 @@ class JargonTagsManager:
   def _promote_abandoned_pending(self) -> None:
     """将超过追问阈值的 pending 转为已知条目，避免重复追问"""
     promoted = 0
+    promoted_phrases_list = []
     for pending in self._store.list_pending():
       if pending.asked_count < self._config.pending_abandon_threshold:
         continue
@@ -680,11 +701,13 @@ class JargonTagsManager:
         )
       )
       promoted += 1
+      promoted_phrases_list.append(removed.phrase)
 
     if promoted > 0:
       self._decision_log.append(
         JargonDecision(
           resolved_count=promoted,
+          resolved_phrases=tuple(promoted_phrases_list),
           notes=f"放弃追问并转入已知条目 {promoted} 条",
           analyzed_at=datetime.now(),
         )

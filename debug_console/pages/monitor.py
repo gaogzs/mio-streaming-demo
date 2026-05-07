@@ -148,6 +148,7 @@ def _build_jargon_card() -> dict:
       refs["active_tags"] = ui.label()
       refs["questions"] = ui.label()
       refs["indirect_hints"] = ui.label()
+      refs["retrieved_jargons"] = ui.label()
       refs["pending_comments"] = ui.label()
       refs["last_decision"] = ui.label()
   return refs
@@ -366,18 +367,32 @@ def _update_jargon_card(refs: dict, state: dict) -> None:
   refs["questions"].text = f"本轮拟追问: {questions}"
   hints = "、".join(state.get("indirect_question_hints", [])) or "无"
   refs["indirect_hints"].text = f"间接提问提示: {hints}"
+  
+  retrieved = "、".join(state.get("last_retrieved_jargons", [])) or "无"
+  refs["retrieved_jargons"].text = f"本轮 RAG 抓取: {retrieved}"
+
   refs["pending_comments"].text = f"待分析评论: {state.get('pending_comments', 0)}"
 
   last = state.get("last_decision")
   if not last:
     refs["last_decision"].text = "最近判官结论: 无"
   else:
+    new_phrases = "、".join(last.get("new_pending_phrases", []))
+    resolved_phrases = "、".join(last.get("resolved_phrases", []))
+    
+    details = []
+    if new_phrases:
+      details.append(f"新增 [{new_phrases}]")
+    if resolved_phrases:
+      details.append(f"解决 [{resolved_phrases}]")
+    details_str = f" ({', '.join(details)})" if details else ""
+
     refs["last_decision"].text = (
       "最近判官结论: "
       f"+pending {last.get('new_pending_count', 0)}, "
       f"resolved {last.get('resolved_count', 0)}, "
       f"revised {last.get('revised_count', 0)}; "
-      f"{last.get('notes', '')}"
+      f"{last.get('notes', '')}{details_str}"
     )
 
 
