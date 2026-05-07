@@ -16,6 +16,7 @@ class ModelType(Enum):
   """模型类型枚举"""
   OPENAI = "openai"
   ANTHROPIC = "anthropic"
+  DEEPSEEK = "deepseek"
   LOCAL_QWEN = "local_qwen"
 
 
@@ -28,6 +29,10 @@ REMOTE_MODELS = {
   ModelType.ANTHROPIC: {
     "large": "claude-opus-4.7",
     "small": "claude-haiku-4.5",
+  },
+  ModelType.DEEPSEEK: {
+    "large": "deepseek-reasoner",
+    "small": "deepseek-chat",
   },
 }
 
@@ -90,6 +95,8 @@ class ModelProvider:
       return self._create_openai_model(model_name, **kwargs)
     elif model_type == ModelType.ANTHROPIC:
       return self._create_anthropic_model(model_name, **kwargs)
+    elif model_type == ModelType.DEEPSEEK:
+      return self._create_deepseek_model(model_name, **kwargs)
     elif model_type == ModelType.LOCAL_QWEN:
       return self._create_local_qwen_model(model_name, **kwargs)
     else:
@@ -128,6 +135,27 @@ class ModelProvider:
     return ChatAnthropic(
       model=model_name or "claude-opus-4.5",
       api_key=api_key,
+      **kwargs
+    )
+
+  def _create_deepseek_model(
+    self,
+    model_name: Optional[str] = None,
+    **kwargs
+  ) -> BaseChatModel:
+    """创建 DeepSeek 模型"""
+    from langchain_openai import ChatOpenAI
+
+    api_key = self._get_secret("deepseek_api_key")
+    if not api_key:
+      raise ValueError("未配置 DeepSeek API Key，请设置环境变量 DEEPSEEK_API_KEY 或在 secrets/api_keys.json 中配置")
+
+    base_url = self._get_secret("deepseek_base_url") or "https://api.deepseek.com"
+
+    return ChatOpenAI(
+      model=model_name or "deepseek-chat",
+      api_key=api_key,
+      base_url=base_url,
       **kwargs
     )
 

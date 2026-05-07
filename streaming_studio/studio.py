@@ -55,7 +55,7 @@ class StreamingStudio:
 
     Args:
       persona: 主播人设 (karin/sage/kuro)
-      model_type: 模型类型 (OPENAI/ANTHROPIC/LOCAL_QWEN)
+      model_type: 模型类型 (OPENAI/ANTHROPIC/DEEPSEEK/LOCAL_QWEN)
       model_name: 模型名称（可选，使用默认值）
       enable_memory: 是否启用分层记忆系统
       enable_global_memory: 是否开启全局记忆（持久化到文件），需同时开启 enable_memory

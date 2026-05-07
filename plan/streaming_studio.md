@@ -91,7 +91,7 @@ class CommentDatabase:
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `persona` | str | "karin" | 主播人设 (karin/sage/kuro) |
-| `model_type` | ModelType | OPENAI | 模型类型 (OPENAI/ANTHROPIC/LOCAL_QWEN) |
+| `model_type` | ModelType | OPENAI | 模型类型 (OPENAI/ANTHROPIC/DEEPSEEK/LOCAL_QWEN) |
 | `model_name` | str \| None | None | 模型名称（可选） |
 | `enable_memory` | bool | False | 是否启用分层记忆系统 |
 

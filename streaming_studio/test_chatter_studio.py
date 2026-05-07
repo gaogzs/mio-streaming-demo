@@ -60,7 +60,8 @@ class TestChatterStudio:
     print("请选择模型类型:")
     print("1. OpenAI (需要 API Key)")
     print("2. Anthropic (需要 API Key)")
-    print("3. 本地 Qwen (需要本地部署)")
+    print("3. DeepSeek (需要 API Key)")
+    print("4. 本地 Qwen (需要本地部署)")
     print()
 
     while True:
@@ -72,6 +73,9 @@ class TestChatterStudio:
         model_type = ModelType.ANTHROPIC
         break
       elif choice == "3":
+        model_type = ModelType.DEEPSEEK
+        break
+      elif choice == "4":
         model_type = ModelType.LOCAL_QWEN
         break
       else:

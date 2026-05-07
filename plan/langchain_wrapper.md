@@ -24,6 +24,7 @@ langchain_wrapper/
 class ModelType(Enum):
   OPENAI = "openai"
   ANTHROPIC = "anthropic"
+  DEEPSEEK = "deepseek"
   LOCAL_QWEN = "local_qwen"
 
 # 预设远程模型名称映射
@@ -36,6 +37,10 @@ REMOTE_MODELS = {
     "large": "claude-opus-4.6",
     "small": "claude-haiku-4.5",
   },
+  ModelType.DEEPSEEK: {
+    "large": "deepseek-reasoner",
+    "small": "deepseek-chat",
+  },
 }
 
 class ModelProvider:
@@ -44,10 +49,10 @@ class ModelProvider:
   # 预设工厂方法
   @classmethod
   def remote_large(cls, provider=ModelType.OPENAI) -> BaseChatModel
-    # OpenAI: gpt-5.2, Anthropic: claude-opus-4.6
+    # OpenAI: gpt-5.2, Anthropic: claude-opus-4.6, DeepSeek: deepseek-reasoner
   @classmethod
   def remote_small(cls, provider=ModelType.OPENAI) -> BaseChatModel
-    # OpenAI: gpt-5-mini, Anthropic: claude-haiku-4.5
+    # OpenAI: gpt-5-mini, Anthropic: claude-haiku-4.5, DeepSeek: deepseek-chat
   @classmethod
   def local_large(cls) -> BaseChatModel    # Qwen3-8B
   @classmethod
@@ -57,6 +62,7 @@ class ModelProvider:
 支持的模型源:
 - OpenAI API (gpt-5.2, gpt-5-mini)
 - Anthropic API (claude-opus-4.6, claude-haiku-4.5)
+- DeepSeek API (deepseek-reasoner, deepseek-chat)
 - 本地Qwen (通过vllm兼容OpenAI接口)
 
 ### StreamingPipeline

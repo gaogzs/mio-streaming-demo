@@ -93,7 +93,8 @@ pip install -r requirements.txt
 ```json
 {
   "openai_api_key": "your-key-here",
-  "anthropic_api_key": "your-key-here"
+  "anthropic_api_key": "your-key-here",
+  "deepseek_api_key": "your-key-here"
 }
 ```
 
@@ -101,6 +102,8 @@ pip install -r requirements.txt
 
 ```bash
 export OPENAI_API_KEY="your-key-here"
+export ANTHROPIC_API_KEY="your-key-here"
+export DEEPSEEK_API_KEY="your-key-here"
 ```
 
 ### 3. 命令行测试

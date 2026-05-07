@@ -23,6 +23,7 @@ from debug_console import run
 MODEL_MAP = {
   "openai": ModelType.OPENAI,
   "anthropic": ModelType.ANTHROPIC,
+  "deepseek": ModelType.DEEPSEEK,
   "qwen": ModelType.LOCAL_QWEN,
 }
 
