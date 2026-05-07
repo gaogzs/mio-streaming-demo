@@ -1,3 +1,4 @@
+from .models import TagEntry
 """
 黑话与标签 prompt 格式化
 """
@@ -31,7 +32,7 @@ def pick_pending_questions(
 
 def format_reference_context(
   entries: list[JargonEntry],
-  active_tags: tuple[str, ...],
+  active_tags: tuple[TagEntry, ...],
   pending_to_ask: list[PendingJargon],
   indirect_hints: tuple[str, ...] = tuple(),
 ) -> str:
@@ -41,8 +42,18 @@ def format_reference_context(
 
   lines = ["【黑话与风格参考】"]
 
-  tags_text = "、".join(active_tags) if active_tags else "无"
+  tags_text = "、".join(t.name for t in active_tags) if active_tags else "无"
   lines.append(f"- 当前活跃标签: {tags_text}")
+
+  if active_tags:
+    quotes_lines = []
+    for tag in active_tags:
+      if tag.canonical_quotes:
+        quotes_str = " | ".join(tag.canonical_quotes)
+        quotes_lines.append(f"  - 面对【{tag.name}】: {quotes_str}")
+    if quotes_lines:
+      lines.append("- 应对风格参考:")
+      lines.extend(quotes_lines)
 
   if entries:
     lines.append("- 可参考黑话:")

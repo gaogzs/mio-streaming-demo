@@ -49,6 +49,7 @@ class TagEntry:
   name: str
   definition: str
   examples: tuple[str, ...] = field(default_factory=tuple)
+  canonical_quotes: tuple[str, ...] = field(default_factory=tuple)
   related_tags: tuple[str, ...] = field(default_factory=tuple)
   confidence: float = 0.5
   created_at: datetime = field(default_factory=datetime.now)

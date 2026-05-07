@@ -73,6 +73,7 @@ class JargonTagsManager:
       exact_match_boost=self._config.exact_match_boost,
       vector_match_boost=self._config.vector_match_boost,
       tag_match_boost=self._config.tag_match_boost,
+      indirect_tag_match_boost=self._config.indirect_tag_match_boost,
     )
 
     self._tag_state = StreamerTagState(active_tags=("普通网民",))
@@ -149,13 +150,16 @@ class JargonTagsManager:
       self._store.mark_pending_asked(item.phrase)
     self._current_questions = tuple(item.phrase for item in to_ask)
 
+    # 查出完整的 TagEntry 以支持例句注入
+    active_tag_entries = []
+    for tag_name in self._tag_state.active_tags:
+      tag = self._store.find_tag_by_name(tag_name)
+      if tag:
+        active_tag_entries.append(tag)
+
     return format_reference_context(
       entries=entries,
-      active_tags=self._tag_state.active_tags,
-      pending_to_ask=to_ask,
-      indirect_hints=self._indirect_question_hints,
-    )
-
+      active_tags=tuple(active_tag_entries),
   async def post_reply(
     self,
     prompt: str,

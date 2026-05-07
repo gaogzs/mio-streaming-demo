@@ -310,3 +310,18 @@ details 子结构：
 4. [x] 在 debug_console 增加 jargon_tags 状态展示。
 5. [x] 增加基础测试脚本（pending 迁移、标签轮换、polish 回退）。
 6. [x] 补齐 JSON 手动导入接口（黑话/标签）。
+
+
+## 新增机制: 标签个性化语录 (Tag-Corpus Integration)
+
+在已有的 `TagEntry` (标签) 基础上，增加了 `canonical_quotes` 字段。
+- 目的：提供标签级别的高质量风格示范例句（0运行延迟损耗、高度定制）。
+- 实现：在每次 `formatter.py` 抓取 Prompt 时，自动把当前 `active_tags` 对应的 `canonical_quotes` 显示给大模型，供其在回复时参考特定受众标签时的口吻特征。
+
+
+## 新增机制: 间接标签 RAG 降权召回 (Indirect Tag Matching)
+
+为支持“主推标签外，也能以较低权重检索到相关风格的黑话”，我们对 RAG 的相关逻辑做出了以下升级：
+1. `init_tags.json` 内部的 `related_tags` 全面互相指向主播的“内置性格营业面具”。
+2. `JargonRetriever` 新增了 `indirect_tag_match_boost` 权重参数（目前配置为 `1.05`，低于主标签的 `1.2`）。
+3. RAG 召回黑话并在最后进行标签提权过滤时，若未完全命中 `active_tags`，但命中了 `active_tags` 的相关预设邻近标签 (`related_tags`)，则依然将其选入过滤高优列表中，但赋予其较低的首选权重，避免越俎代庖。

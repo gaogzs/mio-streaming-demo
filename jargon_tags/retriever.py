@@ -18,11 +18,13 @@ class JargonRetriever:
     exact_match_boost: float = 1.8,
     vector_match_boost: float = 1.0,
     tag_match_boost: float = 1.2,
+    indirect_tag_match_boost: float = 1.05,
   ):
     self._store = store
     self._exact_match_boost = exact_match_boost
     self._vector_match_boost = vector_match_boost
     self._tag_match_boost = tag_match_boost
+    self._indirect_tag_match_boost = indirect_tag_match_boost
 
   def retrieve_for_texts(
     self,
@@ -57,6 +59,12 @@ class JargonRetriever:
       return []
 
     active = set(active_tags)
+    indirect_tags = set()
+    for tag_name in active_tags:
+      tag_obj = self._store.find_tag_by_name(tag_name)
+      if tag_obj and tag_obj.related_tags:
+        indirect_tags.update(tag_obj.related_tags)
+
     filtered: list[tuple[JargonEntry, float]] = []
     fallback: list[tuple[JargonEntry, float]] = []
 
@@ -75,6 +83,9 @@ class JargonRetriever:
 
       if active.intersection(entry_tags):
         score *= self._tag_match_boost
+        filtered.append((entry, score))
+      elif indirect_tags.intersection(entry_tags):
+        score *= self._indirect_tag_match_boost
         filtered.append((entry, score))
       elif "普通网民" in entry_tags:
         fallback.append((entry, score))
