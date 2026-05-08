@@ -251,8 +251,8 @@ class AutoViewer:
     if self._mode == "advanced":
       try:
         # 获取近期混合记录并按时间排序构建上下文
-        comments = self.studio.db.get_recent_comments(self.config.max_comments_context)
-        responses = self.studio.db.get_recent_responses(self.config.max_responses_context)
+        comments = self.studio.database.get_recent_comments(self.config.max_comments_context)
+        responses = self.studio.database.get_recent_responses(self.config.max_responses_context)
         
         # 简单混合排序（基于时间戳）
         mixed = []

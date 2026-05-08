@@ -6,6 +6,7 @@ import asyncio
 import logging
 import uuid
 from datetime import datetime
+from pathlib import Path
 from typing import Optional, TYPE_CHECKING
 
 from langchain_core.language_models import BaseChatModel
@@ -62,6 +63,7 @@ class JargonTagsManager:
     config: JargonTagsConfig | None = None,
     judge_model: Optional[BaseChatModel] = None,
     model_type: ModelType = ModelType.OPENAI,
+    bootstrap_from_disk: bool = True,
   ):
     self._persona = persona
     self._database = database
@@ -77,6 +79,8 @@ class JargonTagsManager:
       vector_match_boost=self._config.vector_match_boost,
       tag_match_boost=self._config.tag_match_boost,
       indirect_tag_match_boost=self._config.indirect_tag_match_boost,
+      tag_mismatch_penalty=self._config.tag_mismatch_penalty,
+      retrieval_min_score=self._config.retrieval_min_score,
     )
 
     self._tag_state = StreamerTagState(active_tags=("普通网民",))
@@ -89,6 +93,9 @@ class JargonTagsManager:
 
     self._analysis_task: asyncio.Task | None = None
     self._running = False
+
+    if bootstrap_from_disk:
+      self._bootstrap_initial_data()
 
   @property
   def is_polish_mode(self) -> bool:
@@ -261,6 +268,69 @@ class JargonTagsManager:
   def upsert_tag(self, entry: TagEntry) -> None:
     """人工或自动写入标签条目"""
     self._store.upsert_tag(entry)
+
+  def clear_all_data(self) -> None:
+    """清空当前黑话与标签数据"""
+    self._store.clear()
+
+  def _bootstrap_initial_data(self) -> None:
+    """从磁盘恢复黑话与标签数据"""
+    project_root = Path(__file__).parent.parent
+    persisted_dir = project_root / "data" / "jargon_store"
+    seed_dir = project_root / "data" / "init_jargon_data"
+
+    known_candidates = [
+      persisted_dir / "known_jargons.json",
+      seed_dir / "mined_jargons.json",
+    ]
+    tag_candidates = [
+      persisted_dir / "tags.json",
+      seed_dir / "mined_tags.json",
+    ]
+
+    loaded_known = self._load_known_from_candidates(known_candidates)
+    loaded_tags = self._load_tags_from_candidates(tag_candidates)
+
+    if loaded_known or loaded_tags:
+      logger.info(
+        "黑话标签数据已恢复: 已知黑话 %d 条, 标签 %d 条",
+        loaded_known,
+        loaded_tags,
+      )
+
+  def _load_known_from_candidates(self, candidates: list[Path]) -> int:
+    """从候选文件加载已知黑话"""
+    for path in candidates:
+      if not path.exists():
+        continue
+      try:
+        entries = import_known_jargons(str(path))
+      except Exception as exc:
+        logger.warning("加载黑话文件失败 %s: %s", path, exc)
+        continue
+
+      for entry in entries:
+        self._store.upsert_known(entry)
+      return len(entries)
+
+    return 0
+
+  def _load_tags_from_candidates(self, candidates: list[Path]) -> int:
+    """从候选文件加载标签"""
+    for path in candidates:
+      if not path.exists():
+        continue
+      try:
+        entries = import_tags(str(path))
+      except Exception as exc:
+        logger.warning("加载标签文件失败 %s: %s", path, exc)
+        continue
+
+      for entry in entries:
+        self._store.upsert_tag(entry)
+      return len(entries)
+
+    return 0
 
   def import_known_jargons_from_json(self, path: str) -> int:
     """从 JSON 批量导入已知黑话，返回导入条数"""

@@ -31,10 +31,12 @@ class JargonTagsConfig:
 
   # 检索权重
   retrieval_top_k: int = 8
+  retrieval_min_score: float = 0.12
   exact_match_boost: float = 1.8
   vector_match_boost: float = 1.0
   tag_match_boost: float = 1.2
   indirect_tag_match_boost: float = 1.05
+  tag_mismatch_penalty: float = 0.92
 
   # 已知条目修订阈值
   revision_confidence_threshold: float = 0.85

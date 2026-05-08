@@ -167,6 +167,16 @@ class JargonStore:
       updated_at=now,
     )
 
+  def clear(self) -> None:
+    """清空全部黑话与标签数据"""
+    self._known.clear()
+    self._pending.clear()
+    self._tags.clear()
+    self._phrase_index.clear()
+
+    if self._vector_store is not None:
+      self._vector_store.clear()
+
   def search_exact(self, text: str) -> list[JargonEntry]:
     """在文本中执行逐字匹配"""
     text = text.strip()
@@ -212,7 +222,6 @@ class JargonStore:
 
     return result
 
-  @staticmethod
   def decay_all_weights(self, coefficient_per_day: float, archive_threshold: float) -> None:
     """
     执行个体权重衰减，基于距上次衰减逝去的时间（以天计）。

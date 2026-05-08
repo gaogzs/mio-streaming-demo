@@ -1,6 +1,6 @@
 """
 黑话检索器
-组合逐字匹配与向量检索，并执行标签过滤
+组合逐字匹配与向量检索，并使用标签作为加权信号
 """
 
 from collections import defaultdict
@@ -19,12 +19,16 @@ class JargonRetriever:
     vector_match_boost: float = 1.0,
     tag_match_boost: float = 1.2,
     indirect_tag_match_boost: float = 1.05,
+    tag_mismatch_penalty: float = 0.92,
+    retrieval_min_score: float = 0.12,
   ):
     self._store = store
     self._exact_match_boost = exact_match_boost
     self._vector_match_boost = vector_match_boost
     self._tag_match_boost = tag_match_boost
     self._indirect_tag_match_boost = indirect_tag_match_boost
+    self._tag_mismatch_penalty = tag_mismatch_penalty
+    self._retrieval_min_score = retrieval_min_score
 
   def retrieve_for_texts(
     self,
@@ -65,33 +69,27 @@ class JargonRetriever:
       if tag_obj and tag_obj.related_tags:
         indirect_tags.update(tag_obj.related_tags)
 
-    filtered: list[tuple[JargonEntry, float]] = []
-    fallback: list[tuple[JargonEntry, float]] = []
+    ranked: list[tuple[JargonEntry, float]] = []
 
     for entry_id, base_score in score_map.items():
       entry = entry_map[entry_id]
-      
+
       if entry.status == "archived":
         continue
-      
+
       entry_tags = set(entry.tags)
       score = base_score * entry.weight
 
-      if not entry_tags:
-        fallback.append((entry, score))
-        continue
-
       if active.intersection(entry_tags):
         score *= self._tag_match_boost
-        filtered.append((entry, score))
       elif indirect_tags.intersection(entry_tags):
         score *= self._indirect_tag_match_boost
-        filtered.append((entry, score))
-      elif "普通网民" in entry_tags:
-        fallback.append((entry, score))
+      elif entry_tags:
+        score *= self._tag_mismatch_penalty
 
-    ranked = sorted(filtered, key=lambda item: item[1], reverse=True)
-    if not ranked:
-      ranked = sorted(fallback, key=lambda item: item[1], reverse=True)
+      if score >= self._retrieval_min_score:
+        ranked.append((entry, score))
+
+    ranked.sort(key=lambda item: item[1], reverse=True)
 
     return [entry for entry, _ in ranked[:top_k]]
