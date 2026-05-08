@@ -31,8 +31,8 @@ REMOTE_MODELS = {
     "small": "claude-haiku-4.5",
   },
   ModelType.DEEPSEEK: {
-    "large": "deepseek-reasoner",
-    "small": "deepseek-chat",
+    "large": "deepseek-v4-pro",
+    "small": "deepseek-v4-flash",
   },
 }
 

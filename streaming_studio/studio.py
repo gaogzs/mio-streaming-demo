@@ -88,6 +88,7 @@ class StreamingStudio:
         memory_manager = MemoryManager(
           persona=persona,
           config=MemoryConfig(),
+          model_type=model_type,
           enable_global_memory=enable_global_memory,
         )
 
@@ -144,6 +145,7 @@ class StreamingStudio:
       self._topic_manager = TopicManager(
         persona=persona,
         database=self.database,
+        model_type=model_type,
       )
 
     # 黑话与标签管理器
@@ -154,6 +156,7 @@ class StreamingStudio:
         persona=persona,
         database=self.database,
         config=JargonTagsConfig(mode=jargon_mode),
+        model_type=model_type,
       )
 
     # Prompt 模板

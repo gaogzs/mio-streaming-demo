@@ -10,6 +10,7 @@ from typing import Optional, Union
 
 from langchain_core.language_models import BaseChatModel
 from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_wrapper.model_provider import ModelType
 
 from .config import MemoryConfig, EmbeddingConfig
 from .store import VectorStore
@@ -39,6 +40,7 @@ class MemoryManager:
     persona: str,
     config: MemoryConfig = MemoryConfig(),
     summary_model: Optional[BaseChatModel] = None,
+    model_type: ModelType = ModelType.OPENAI,
     enable_global_memory: bool = False,
   ):
     """
@@ -51,6 +53,7 @@ class MemoryManager:
       enable_global_memory: 是否开启全局记忆（持久化到文件）
     """
     self._enable_global_memory = enable_global_memory
+    self._model_type = model_type
 
     # 根据全局记忆开关决定持久化策略
     if enable_global_memory:
@@ -142,7 +145,7 @@ class MemoryManager:
     """
     if self._summary_model is None:
       from langchain_wrapper.model_provider import ModelProvider
-      self._summary_model = ModelProvider.remote_small()
+      self._summary_model = ModelProvider.remote_small(self._model_type)
     return self._summary_model
 
   def retrieve(self, query: Union[str, list[str]]) -> tuple[str, str]:

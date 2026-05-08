@@ -61,6 +61,10 @@ class JargonStore:
     """获取所有标签"""
     return list(self._tags.values())
 
+  def find_tag_by_name(self, name: str) -> Optional[TagEntry]:
+    """按标签名查找标签条目"""
+    return self._tags.get(name.strip())
+
   def find_known_by_phrase(self, phrase: str) -> Optional[JargonEntry]:
     """按黑话原文查找已知条目"""
     entry_id = self._phrase_index.get(phrase.strip())

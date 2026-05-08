@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Optional, TYPE_CHECKING
 
 from langchain_core.language_models import BaseChatModel
+from langchain_wrapper.model_provider import ModelType
 
 from prompts import PromptLoader
 
@@ -60,11 +61,13 @@ class JargonTagsManager:
     database: "CommentDatabase",
     config: JargonTagsConfig | None = None,
     judge_model: Optional[BaseChatModel] = None,
+    model_type: ModelType = ModelType.OPENAI,
   ):
     self._persona = persona
     self._database = database
     self._config = config or JargonTagsConfig()
     self._judge_model = judge_model
+    self._model_type = model_type
     self._prompt_loader = PromptLoader()
 
     self._store = JargonStore()
@@ -346,7 +349,7 @@ class JargonTagsManager:
     """获取小模型（延迟初始化）"""
     if self._judge_model is None:
       from langchain_wrapper.model_provider import ModelProvider
-      self._judge_model = ModelProvider.remote_small()
+      self._judge_model = ModelProvider.remote_small(self._model_type)
     return self._judge_model
 
   async def _run_llm_judges(self, comments: list["Comment"]) -> None:

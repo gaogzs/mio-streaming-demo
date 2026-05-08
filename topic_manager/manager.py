@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Optional, TYPE_CHECKING
 
 from langchain_core.language_models import BaseChatModel
+from langchain_wrapper.model_provider import ModelType
 
 from .config import TopicManagerConfig
 from .models import Topic, ContentAnalysisDelta, RhythmAnalysisDelta
@@ -40,6 +41,7 @@ class TopicManager:
     persona: str,
     database: "CommentDatabase",
     model: Optional[BaseChatModel] = None,
+    model_type: ModelType = ModelType.OPENAI,
     config: Optional[TopicManagerConfig] = None,
   ):
     """
@@ -54,6 +56,7 @@ class TopicManager:
     self._persona = persona
     self._database = database
     self._model = model
+    self._model_type = model_type
     self._config = config or TopicManagerConfig()
 
     # 话题表
@@ -78,7 +81,7 @@ class TopicManager:
     """获取小模型（延迟初始化）"""
     if self._model is None:
       from langchain_wrapper.model_provider import ModelProvider
-      self._model = ModelProvider.remote_small()
+      self._model = ModelProvider.remote_small(self._model_type)
     return self._model
 
   @property

@@ -46,7 +46,7 @@ def create_chat_page(studio: StreamingStudio) -> None:
   state["next_id"], state["next_nick"] = _random_identity()
 
   # 自动观众引擎
-  auto_viewer = AutoViewer(studio)
+  auto_viewer = AutoViewer(studio, model_type=studio.llm_wrapper.model_type)
 
   # 回调引用（stop / disconnect 时移除）
   callback_ref = {"fn": None, "chunk_fn": None}

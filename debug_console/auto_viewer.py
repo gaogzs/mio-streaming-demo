@@ -14,7 +14,7 @@ from typing import Optional
 from coolname import generate
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from langchain_wrapper.model_provider import ModelProvider
+from langchain_wrapper.model_provider import ModelProvider, ModelType
 from streaming_studio import StreamingStudio, Comment
 from streaming_studio.models import StreamerResponse
 
@@ -62,6 +62,7 @@ class AutoViewer:
     studio: StreamingStudio,
     config: AutoViewerConfig = AutoViewerConfig(),
     mode: str = "simple",
+    model_type: Optional[ModelType] = None,
   ):
     """
     初始化自动观众引擎
@@ -75,7 +76,12 @@ class AutoViewer:
     self.config = config
     self._mode = mode
     self.topic_guidance = ""
-    self._model = ModelProvider.remote_small()
+    inferred_model_type = model_type or getattr(
+      getattr(studio, "llm_wrapper", None),
+      "model_type",
+      ModelType.OPENAI,
+    )
+    self._model = ModelProvider.remote_small(inferred_model_type)
     self._prompt_template = _load_prompt(self._mode)
     self._recent_responses: list[str] = []
     self._running = False
