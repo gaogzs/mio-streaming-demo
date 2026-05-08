@@ -19,6 +19,7 @@ from streaming_studio.models import Comment
 
 from jargon_tags import JargonTagsConfig, JargonTagsManager, PendingJargon
 from jargon_tags.models import JargonEntry
+from jargon_tags.judge import extract_candidate_phrases
 
 
 def _assert(condition: bool, message: str) -> None:
@@ -57,9 +58,10 @@ async def test_gradual_tag_rotation() -> None:
     tag_rotation_interval_seconds=0.0,
   )
   manager = JargonTagsManager(persona="karin", database=db, config=cfg)
+  persona_tag = manager.debug_state()["persona_tag_name"]
 
   manager._tag_state = manager._tag_state.__class__(
-    active_tags=("普通网民", "主播粉丝", "90后"),
+    active_tags=(persona_tag, "普通网民", "主播粉丝"),
     candidate_tags=tuple(),
     rotation_cursor=0,
     last_rotate_at=None,
@@ -71,11 +73,38 @@ async def test_gradual_tag_rotation() -> None:
   manager._rotate_active_tags_gradually(("二次元", "贴吧老哥"))
   second = manager._tag_state.active_tags
 
-  diff1 = sum(1 for a, b in zip(("普通网民", "主播粉丝", "90后"), first) if a != b)
+  diff1 = sum(1 for a, b in zip((persona_tag, "普通网民", "主播粉丝"), first) if a != b)
   diff2 = sum(1 for a, b in zip(first, second) if a != b)
 
   _assert(diff1 <= 1, "第一次轮换替换超过 1 个标签")
+  _assert(first[0] == persona_tag, "主播专属标签被轮换掉了")
   _assert(diff2 <= 1, "第二次轮换替换超过 1 个标签")
+
+
+def test_persona_tag_is_fixed_and_applied() -> None:
+  """验证主播专属标签固定存在且新黑话默认归属它"""
+  db = CommentDatabase(db_path=":memory:")
+  cfg = JargonTagsConfig(mode="reference", enable_llm_judge=False, active_tag_count=3)
+  manager = JargonTagsManager(
+    persona="karin",
+    database=db,
+    config=cfg,
+    bootstrap_from_disk=False,
+  )
+
+  state = manager.debug_state()
+  persona_tag = state["persona_tag_name"]
+  _assert(persona_tag in state["active_tags"], "主播专属标签未进入活跃标签")
+  _assert(manager._store.find_tag_by_name(persona_tag) is not None, "主播专属标签未写入标签库")
+
+  comment = Comment(user_id="u1", nickname="小明", content="这个「新梗」太绝了")
+  phrases = extract_candidate_phrases(comment.content)
+  _assert("新梗" in phrases, "候选黑话提取失败，测试前置条件不满足")
+
+  manager._learn_from_comments([comment])
+  pending = manager._store.find_pending_by_phrase("新梗")
+  _assert(pending is not None, "新黑话未写入 pending")
+  _assert(pending.candidate_tags == (persona_tag,), "新黑话未归属主播专属标签")
 
 
 async def test_polish_fallback() -> None:
@@ -118,6 +147,9 @@ async def main() -> None:
 
   await test_gradual_tag_rotation()
   print("[PASS] 标签渐进轮换")
+
+  test_persona_tag_is_fixed_and_applied()
+  print("[PASS] 主播专属标签固定与归属")
 
   await test_polish_fallback()
   print("[PASS] polish 回退")

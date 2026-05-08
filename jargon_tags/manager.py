@@ -71,8 +71,16 @@ class JargonTagsManager:
     self._judge_model = judge_model
     self._model_type = model_type
     self._prompt_loader = PromptLoader()
+    self._persona_tag_name = self._config.persona_tag_name or f"{persona}本人"
+    self._persona_tag_definition = self._config.persona_tag_definition
 
     self._store = JargonStore()
+    self._persona_tag_entry = TagEntry(
+      name=self._persona_tag_name,
+      definition=self._persona_tag_definition,
+      confidence=1.0,
+    )
+    self._store.upsert_tag(self._persona_tag_entry)
     self._retriever = JargonRetriever(
       store=self._store,
       exact_match_boost=self._config.exact_match_boost,
@@ -83,7 +91,7 @@ class JargonTagsManager:
       retrieval_min_score=self._config.retrieval_min_score,
     )
 
-    self._tag_state = StreamerTagState(active_tags=("普通网民",))
+    self._tag_state = self._build_initial_tag_state()
     self._current_questions: tuple[str, ...] = tuple()
     self._indirect_question_hints: tuple[str, ...] = tuple()
     self._last_retrieved_jargons: tuple[str, ...] = tuple()
@@ -272,6 +280,27 @@ class JargonTagsManager:
   def clear_all_data(self) -> None:
     """清空当前黑话与标签数据"""
     self._store.clear()
+    self._store.upsert_tag(self._persona_tag_entry)
+    self._tag_state = self._build_initial_tag_state()
+
+  def _build_initial_tag_state(self) -> StreamerTagState:
+    """构建包含主播专属标签的初始标签状态"""
+    active_tags = [self._persona_tag_name]
+    if self._config.active_tag_count > 1:
+      active_tags.append("普通网民")
+    return StreamerTagState(active_tags=tuple(active_tags))
+
+  def _persona_tag_tuple(self) -> tuple[str, ...]:
+    """返回主播专属标签元组"""
+    return (self._persona_tag_name,)
+
+  def _merge_with_persona_tag(self, tags: tuple[str, ...]) -> tuple[str, ...]:
+    """确保主播专属标签始终包含在 tags 中"""
+    merged: list[str] = [self._persona_tag_name]
+    for tag in tags:
+      if tag and tag not in merged:
+        merged.append(tag)
+    return tuple(merged)
 
   def _bootstrap_initial_data(self) -> None:
     """从磁盘恢复黑话与标签数据"""
@@ -359,6 +388,8 @@ class JargonTagsManager:
     return {
       "running": self._running,
       "mode": self._config.mode,
+      "persona_tag_name": self._persona_tag_name,
+      "persona_tag_definition": self._persona_tag_definition,
       "known_jargon_count": len(self._store.list_known()),
       "pending_jargon_count": len(self._store.list_pending()),
       "tag_count": len(self._store.list_tags()),
@@ -534,12 +565,11 @@ class JargonTagsManager:
         self._store.mark_pending_seen(phrase)
         continue
 
-      tags = tuple(item.get("tags", [])) if isinstance(item.get("tags", []), list) else tuple()
       self._store.upsert_pending(
         PendingJargon(
           phrase=phrase,
           candidate_brief=str(item.get("brief", "待解明黑话候选"))[:60],
-          candidate_tags=tags or self._tag_state.active_tags,
+          candidate_tags=self._persona_tag_tuple(),
           notes="来自 LLM 判官候选",
         )
       )
@@ -562,7 +592,7 @@ class JargonTagsManager:
             phrase=phrase,
             brief=brief,
             details=details,
-            tags=tags or self._tag_state.active_tags,
+            tags=self._merge_with_persona_tag(tags),
             confidence=0.72 if status == "resolved" else 0.55,
             source_refs=("llm_resolution",),
           )
@@ -592,7 +622,7 @@ class JargonTagsManager:
           phrase=current.phrase,
           brief=str(item.get("brief", current.brief)).strip() or current.brief,
           details=str(item.get("details", current.details)).strip() or current.details,
-          tags=tuple(tags) if isinstance(tags, list) and tags else current.tags,
+          tags=self._merge_with_persona_tag(tuple(tags) if isinstance(tags, list) and tags else current.tags),
           status=current.status,
           confidence=max(current.confidence, confidence),
           source_refs=current.source_refs + ("llm_revision",),
@@ -675,7 +705,10 @@ class JargonTagsManager:
 
     current = list(self._tag_state.active_tags)
     if not current:
-      current = ["普通网民"]
+      current = [self._persona_tag_name]
+
+    if current[0] != self._persona_tag_name:
+      current = [self._persona_tag_name] + [tag for tag in current if tag != self._persona_tag_name]
 
     max_count = max(1, self._config.active_tag_count)
     if len(current) > max_count:
@@ -684,7 +717,7 @@ class JargonTagsManager:
     # 若存在新标签，每次仅替换一个位置；否则保持不变
     replacement: Optional[str] = None
     for tag in unique_suggested:
-      if tag not in current:
+      if tag != self._persona_tag_name and tag not in current:
         replacement = tag
         break
 
@@ -695,9 +728,13 @@ class JargonTagsManager:
       current.append(replacement)
       next_cursor = self._tag_state.rotation_cursor
     else:
-      idx = self._tag_state.rotation_cursor % len(current)
-      current[idx] = replacement
-      next_cursor = (idx + 1) % len(current)
+      rotating_slots = current[1:]
+      if not rotating_slots:
+        return
+      idx = self._tag_state.rotation_cursor % len(rotating_slots)
+      rotating_slots[idx] = replacement
+      current = [self._persona_tag_name, *rotating_slots]
+      next_cursor = (idx + 1) % len(rotating_slots)
 
     self._tag_state = StreamerTagState(
       active_tags=tuple(current),
@@ -728,7 +765,7 @@ class JargonTagsManager:
           PendingJargon(
             phrase=phrase,
             candidate_brief="待观众解释的疑似黑话",
-            candidate_tags=self._tag_state.active_tags,
+            candidate_tags=self._persona_tag_tuple(),
             notes=f"初次发现于 {comment.nickname} 的弹幕",
             seen_count=1,
           )
@@ -767,7 +804,7 @@ class JargonTagsManager:
             "该表达在互动中多次追问仍未获得有效解释，"
             "暂按自然表达记录，用于避免重复追问。"
           ),
-          tags=removed.candidate_tags or ("普通网民",),
+          tags=self._merge_with_persona_tag(removed.candidate_tags),
           status="unresolved_resolved",
           confidence=0.35,
           source_refs=("pending_abandon",),

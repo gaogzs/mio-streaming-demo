@@ -28,6 +28,8 @@ class JargonTagsConfig:
   tag_rotation_interval_seconds: float = 600.0
   active_tag_count: int = 3
   min_tag_confidence: float = 0.55
+  persona_tag_name: str | None = None
+  persona_tag_definition: str = "主播本人专属标签，记录该主播自己产生的梗、黑话和风格"
 
   # 检索权重
   retrieval_top_k: int = 8
