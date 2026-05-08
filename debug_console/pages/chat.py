@@ -48,6 +48,10 @@ def create_chat_page(studio: StreamingStudio) -> None:
   # 自动观众引擎
   auto_viewer = AutoViewer(studio, model_type=studio.llm_wrapper.model_type)
 
+  studio_state = studio.debug_state()
+  recent_comments = list(reversed(studio.database.get_recent_comments(limit=50)))
+  recent_responses = list(reversed(studio.database.get_recent_responses(limit=50)))
+
   # 回调引用（stop / disconnect 时移除）
   callback_ref = {"fn": None, "chunk_fn": None}
 
@@ -66,7 +70,9 @@ def create_chat_page(studio: StreamingStudio) -> None:
     with ui.row().classes("w-full items-center gap-4 flex-wrap"):
       ui.label("模拟直播间").classes("text-2xl font-bold")
 
-      status_label = ui.label().classes("text-sm")
+      status_label = ui.label(
+        "运行中" if studio_state.get("is_running") else "已停止"
+      ).classes("text-sm")
 
       ui.space()
 
@@ -96,14 +102,21 @@ def create_chat_page(studio: StreamingStudio) -> None:
 
       start_btn = ui.button("启动", on_click=on_start).props("dense")
       stop_btn = ui.button("停止", on_click=on_stop).props("dense")
-      stop_btn.disable()
+      if studio_state.get("is_running"):
+        start_btn.disable()
+      else:
+        stop_btn.disable()
 
       ui.separator().props("vertical")
 
       with ui.card().classes("gap-2 px-3 py-2 bg-gray-50 border"):
         with ui.row().classes("items-center gap-3 flex-wrap"):
           ui.label("自动观众设置").classes("text-sm font-bold text-purple-700")
-          auto_label = ui.label(auto_status_text).classes("text-xs text-gray-400")
+          auto_label = ui.label(
+            "运行中" if auto_viewer.is_running else auto_status_text
+          ).classes(
+            "text-xs text-green-600" if auto_viewer.is_running else "text-xs text-gray-400"
+          )
 
         async def on_auto_toggle(e):
           if e.value:
@@ -123,6 +136,7 @@ def create_chat_page(studio: StreamingStudio) -> None:
 
         with ui.row().classes("items-center gap-3 flex-wrap"):
           auto_switch = ui.switch("自动观众", on_change=on_auto_toggle).props("dense")
+          auto_switch.value = auto_viewer.is_running
           auto_mode_select = ui.select(
             {"simple": "普通", "advanced": "连续性（高级）"},
             value="simple",
@@ -193,6 +207,16 @@ def create_chat_page(studio: StreamingStudio) -> None:
 
   # ── 辅助函数 ──
 
+  def _restore_comment_bubble(comment) -> None:
+    _add_comment_bubble(
+      comment.nickname,
+      comment.content,
+      comment.timestamp.strftime("%H:%M:%S"),
+    )
+
+  def _restore_response_bubble(response) -> None:
+    _add_response_bubble(response.content)
+
   def _add_comment_bubble(nickname: str, content: str, timestamp: str):
     """添加弹幕到右栏"""
     with comment_container:
@@ -252,6 +276,12 @@ def create_chat_page(studio: StreamingStudio) -> None:
 
   callback_ref["chunk_fn"] = on_chunk
   studio.on_response_chunk(on_chunk)
+
+  for response in recent_responses:
+    _restore_response_bubble(response)
+
+  for comment in recent_comments:
+    _restore_comment_bubble(comment)
 
   # ── 自动观众弹幕显示回调 ──
 

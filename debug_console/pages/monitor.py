@@ -53,6 +53,8 @@ def create_monitor_page(collector: StateCollector) -> None:
     # 记忆系统
     containers["memory"] = _build_memory_card()
 
+  refresh()
+
   # 每 2 秒自动刷新
   ui.timer(2.0, refresh)
 
