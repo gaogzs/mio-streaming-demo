@@ -51,6 +51,9 @@ def create_chat_page(studio: StreamingStudio) -> None:
   # 回调引用（stop / disconnect 时移除）
   callback_ref = {"fn": None, "chunk_fn": None}
 
+  # 自动观众面板状态
+  auto_status_text = "已停止"
+
   # 流式气泡追踪 {response_id: (content_label, card)}
   streaming_bubbles: dict[str, tuple[ui.label, ui.card]] = {}
   # 已完成流式输出的 response_id（避免 on_response 重复，有界防泄漏）
@@ -97,25 +100,40 @@ def create_chat_page(studio: StreamingStudio) -> None:
 
       ui.separator().props("vertical")
 
-      async def on_auto_toggle(e):
-        if e.value:
-          await auto_viewer.start()
-          auto_label.text = "运行中"
-          auto_label.classes(replace="text-xs text-green-600")
-        else:
-          await auto_viewer.stop()
-          auto_label.text = "已停止"
-          auto_label.classes(replace="text-xs text-gray-400")
-            
+      with ui.card().classes("gap-2 px-3 py-2 bg-gray-50 border"):
+        with ui.row().classes("items-center gap-3 flex-wrap"):
+          ui.label("自动观众设置").classes("text-sm font-bold text-purple-700")
+          auto_label = ui.label(auto_status_text).classes("text-xs text-gray-400")
+
+        async def on_auto_toggle(e):
+          if e.value:
+            await auto_viewer.start()
+            auto_label.text = "运行中"
+            auto_label.classes(replace="text-xs text-green-600")
+          else:
+            await auto_viewer.stop()
+            auto_label.text = "已停止"
+            auto_label.classes(replace="text-xs text-gray-400")
+
         def on_auto_mode_change(e):
           auto_viewer.mode = e.value
-          
+
         def on_topic_change(e):
           auto_viewer.topic_guidance = e.value
 
-        auto_switch = ui.switch("自动观众", on_change=on_auto_toggle).props("dense")
-        auto_mode_select = ui.select({"simple": "普通", "advanced": "连续性（高级）"}, value="simple", on_change=on_auto_mode_change).props("dense")
-        auto_topic_input = ui.input("互动引导", placeholder="如：聊聊游戏", on_change=on_topic_change).props("dense").classes("w-32")
+        with ui.row().classes("items-center gap-3 flex-wrap"):
+          auto_switch = ui.switch("自动观众", on_change=on_auto_toggle).props("dense")
+          auto_mode_select = ui.select(
+            {"simple": "普通", "advanced": "连续性（高级）"},
+            value="simple",
+            on_change=on_auto_mode_change,
+          ).props("dense")
+          auto_topic_input = ui.input(
+            "互动引导",
+            placeholder="如：聊聊游戏",
+            on_change=on_topic_change,
+          ).props("dense").classes("w-32")
+          preview_label = ui.label("下一个身份: 待发送后生成").classes("text-xs text-gray-500")
     # ── 左右分栏 ──
     with ui.row().classes("w-full flex-1 gap-4"):
 

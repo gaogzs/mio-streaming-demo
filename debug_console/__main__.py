@@ -43,11 +43,11 @@ def main():
   )
   parser.add_argument(
     "--topic-manager", action="store_true", default=True,
-    help="启用话题管理器（追踪和管理直播话题，默认关闭）",
+    help="启用话题管理器",
   )
   parser.add_argument(
-    "--jargon-tags", action="store_true", default=False,
-    help="启用黑话与标签系统（默认关闭）",
+    "--jargon-tags", action="store_true", default=True,
+    help="启用黑话与标签系统",
   )
   parser.add_argument(
     "--jargon-mode", default="reference", choices=["reference", "polish"],
