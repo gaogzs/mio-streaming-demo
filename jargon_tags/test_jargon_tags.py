@@ -1,5 +1,5 @@
 """
-黑话与标签系统最小测试脚本
+短语与标签系统最小测试脚本
 
 运行方式：
   python -m jargon_tags.test_jargon_tags
@@ -82,7 +82,7 @@ async def test_gradual_tag_rotation() -> None:
 
 
 def test_persona_tag_is_fixed_and_applied() -> None:
-  """验证主播专属标签固定存在且新黑话默认归属它"""
+  """验证主播专属标签固定存在且新短语默认归属它"""
   db = CommentDatabase(db_path=":memory:")
   cfg = JargonTagsConfig(mode="reference", enable_llm_judge=False, active_tag_count=3)
   manager = JargonTagsManager(
@@ -99,12 +99,12 @@ def test_persona_tag_is_fixed_and_applied() -> None:
 
   comment = Comment(user_id="u1", nickname="小明", content="这个「新梗」太绝了")
   phrases = extract_candidate_phrases(comment.content)
-  _assert("新梗" in phrases, "候选黑话提取失败，测试前置条件不满足")
+  _assert("新梗" in phrases, "候选短语提取失败，测试前置条件不满足")
 
   manager._learn_from_comments([comment])
   pending = manager._store.find_pending_by_phrase("新梗")
-  _assert(pending is not None, "新黑话未写入 pending")
-  _assert(pending.candidate_tags == (persona_tag,), "新黑话未归属主播专属标签")
+  _assert(pending is not None, "新短语未写入 pending")
+  _assert(pending.candidate_tags == (persona_tag,), "新短语未归属主播专属标签")
 
 
 async def test_polish_fallback() -> None:
@@ -113,7 +113,7 @@ async def test_polish_fallback() -> None:
   cfg = JargonTagsConfig(mode="polish", enable_llm_judge=False)
   manager = JargonTagsManager(persona="karin", database=db, config=cfg, judge_model=None)
 
-  # 填一个黑话条目，避免因为无候选直接返回。
+  # 填一个短语条目，避免因为无候选直接返回。
   manager._store.upsert_known(
     JargonEntry(
       entry_id="test_jargon_1",

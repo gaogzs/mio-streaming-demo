@@ -1,5 +1,5 @@
 """
-黑话与标签 JSON 导入导出
+短语与标签 JSON 导入导出
 """
 
 import json
@@ -10,7 +10,7 @@ from .models import JargonEntry, TagEntry
 
 
 def export_known_jargons(path: str, entries: list[JargonEntry]) -> None:
-  """导出已知黑话为 JSON"""
+  """导出已知短语为 JSON"""
   target = Path(path)
   target.parent.mkdir(parents=True, exist_ok=True)
   payload = [
@@ -56,14 +56,14 @@ def export_tags(path: str, entries: list[TagEntry]) -> None:
 
 
 def import_known_jargons(path: str) -> list[JargonEntry]:
-  """从 JSON 导入已知黑话"""
+  """从 JSON 导入已知短语"""
   source = Path(path)
   if not source.exists():
-    raise FileNotFoundError(f"黑话文件不存在: {source}")
+    raise FileNotFoundError(f"短语文件不存在: {source}")
 
   raw = json.loads(source.read_text(encoding="utf-8"))
   if not isinstance(raw, list):
-    raise ValueError("黑话导入文件格式错误：顶层必须是数组")
+    raise ValueError("短语导入文件格式错误：顶层必须是数组")
 
   result: list[JargonEntry] = []
   for item in raw:

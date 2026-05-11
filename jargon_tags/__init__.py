@@ -1,6 +1,6 @@
 """
 jargon_tags 模块
-黑话与标签系统（骨架版）
+短语与标签系统（骨架版）
 """
 
 from .config import JargonTagsConfig

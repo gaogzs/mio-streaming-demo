@@ -1,6 +1,6 @@
 from .models import TagEntry
 """
-黑话与标签 prompt 格式化
+短语与标签 prompt 格式化
 """
 
 import random
@@ -13,7 +13,7 @@ def pick_pending_questions(
   max_count: int,
   pick_mode: str,
 ) -> list[PendingJargon]:
-  """挑选本轮追问的待解明黑话"""
+  """挑选本轮追问的待解明短语"""
   if max_count <= 0 or not pending_items:
     return []
 
@@ -40,7 +40,7 @@ def format_reference_context(
   if not entries and not pending_to_ask:
     return ""
 
-  lines = ["【黑话与风格参考】"]
+  lines = ["【短语与风格参考】"]
 
   tags_text = "、".join(t.name for t in active_tags) if active_tags else "无"
   lines.append(f"- 当前活跃标签: {tags_text}")
@@ -56,7 +56,7 @@ def format_reference_context(
       lines.extend(quotes_lines)
 
   if entries:
-    lines.append("- 可参考黑话:")
+    lines.append("- 可参考短语:")
     for entry in entries:
       tag_text = "、".join(entry.tags) if entry.tags else "普通网民"
       lines.append(f"  - {entry.phrase}: {entry.brief}（标签: {tag_text}）")

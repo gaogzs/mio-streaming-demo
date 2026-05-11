@@ -1,5 +1,5 @@
 """
-黑话判官工具
+短语判官工具
 提供规则候选提取与 LLM JSON 解析
 """
 
@@ -15,7 +15,7 @@ _CANDIDATE_PATTERNS = [
 
 
 def extract_candidate_phrases(text: str) -> list[str]:
-  """从文本中提取疑似黑话候选"""
+  """从文本中提取疑似短语候选"""
   text = text.strip()
   if not text:
     return []

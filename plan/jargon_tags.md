@@ -2,10 +2,10 @@
 
 ## 模块目标
 
-为虚拟主播新增“黑话 + 标签”双系统：
+为虚拟主播新增“短语 + 标签”双系统：
 
-1. 让主播能在互动中学习新黑话，并持续修订已有条目。
-2. 通过标签约束黑话使用范围，避免风格漂移和出戏。
+1. 让主播能在互动中学习新短语，并持续修订已有条目。
+2. 通过标签约束短语使用范围，避免风格漂移和出戏。
 3. 以异步为主接入主流程，尽量不增加单次回复延迟。
 4. 支持人工导入、AI 自动学习、调试台可观测。
 
@@ -22,11 +22,11 @@
 jargon_tags/
   __init__.py
   config.py                # 全局配置
-  models.py                # 数据类（黑话、待解明条目、标签、主播标签状态）
-  store.py                 # 黑话/标签存储封装（向量+元数据）
+   models.py                # 数据类（短语、待解明条目、标签、主播标签状态）
+   store.py                 # 短语/标签存储封装（向量+元数据）
   archive.py               # JSON 导入导出与人工录入接口
   retriever.py             # 逐字匹配 + 向量召回 + 标签过滤
-  judge.py                 # 黑话判官（新词发现/解释识别/条目修订）
+   judge.py                 # 短语判官（新词发现/解释识别/条目修订）
   tag_judge.py             # 标签判官（标签演化+主播标签轮换建议）
   formatter.py             # prompt 片段格式化
   manager.py               # 顶层编排器（推荐入口）
@@ -36,21 +36,21 @@ jargon_tags/
 
 ```
 prompts/jargon/
-  discover_and_resolve.txt     # 黑话判官主提示词
-  revise_known_entry.txt       # 已知黑话修订提示词（可选）
+   discover_and_resolve.txt     # 短语判官主提示词
+   revise_known_entry.txt       # 已知短语修订提示词（可选）
   tag_evolution.txt            # 标签判官提示词
-  ask_pending_jargon.txt       # 提问待解明黑话的提示片段
+   ask_pending_jargon.txt       # 提问待解明短语的提示片段
   reference_mode_hint.txt      # 参考模式注入提示
   polish_mode_rewrite.txt      # 润色模式重写提示
 ```
 
 ## 数据模型设计
 
-### 1) 已知黑话条目 JargonEntry
+### 1) 已知短语条目 JargonEntry
 
 字段建议：
 
-- phrase: 黑话原文
+- phrase: 短语原文
 - brief: 简要含义（检索展示）
 - details: 详细信息对象
 - tags: 标签列表
@@ -64,11 +64,11 @@ details 子结构：
 
 - origin: 来源说明
 - meaning: 详细含义
-- distinctions: 与近义黑话差异
+- distinctions: 与近义短语差异
 - usage: 用法
 - examples:
   - plain: 正常表达
-  - jargon: 黑话表达
+   - jargon: 短语表达
 
 ### 2) 待解明条目 PendingJargon
 
@@ -101,7 +101,7 @@ details 子结构：
 
 ## 存储与检索设计
 
-### 黑话存储
+### 短语存储
 
 1. 向量库：沿用 Chroma 封装思路，文档内容由 phrase + brief + meaning + usage 拼接。
 2. 精确匹配索引：内存字典 phrase -> entry_id，支持逐字命中。
@@ -109,13 +109,13 @@ details 子结构：
 
 ### 待解明存储
 
-1. 单独集合，不混入已知黑话。
+1. 单独集合，不混入已知短语。
 2. 支持按 asked_count、last_seen_at、seen_count 排序抓取。
 
 ### 标签存储
 
 1. 标签本体使用独立集合。
-2. 黑话条目与标签通过 tags 字段关联。
+2. 短语条目与标签通过 tags 字段关联。
 
 ### 检索流程 Retriever
 
@@ -125,7 +125,7 @@ details 子结构：
 2. 关键词切分后做短文本向量检索。
 3. 合并去重并计算得分。
 4. 叠加主播 active_tags 过滤和加权。
-5. 输出用于 prompt 的候选黑话片段。
+5. 输出用于 prompt 的候选短语片段。
 
 ## 判官流程设计
 
@@ -134,11 +134,11 @@ details 子结构：
 推荐“1 主请求 + 可选修订请求”的混合方案：
 
 1. 主请求 discover_and_resolve：
-   - 输入：最近评论窗口 + 相关已知黑话 + 待解明条目。
+   - 输入：最近评论窗口 + 相关已知短语 + 待解明条目。
    - 输出：
-     - 新疑似黑话
-     - 对待解明黑话的解释判定
-     - 对已知黑话是否建议修订
+   - 新疑似短语
+   - 对待解明短语的解释判定
+   - 对已知短语是否建议修订
 2. 可选修订请求 revise_known_entry：
    - 仅当主请求标记 high_confidence_revision 时触发。
    - 作用：生成结构化修订内容并做字段级更新。
@@ -149,11 +149,11 @@ details 子结构：
 2. 修订是高风险动作，拆成可选二次请求更稳。
 3. 与“异步后台处理”目标一致。
 
-## 黑话学习状态机
+## 短语学习状态机
 
 每轮后台分析后，对每个条目执行：
 
-1. 新疑似黑话：加入 pending。
+1. 新疑似短语：加入 pending。
 2. 待解明收到充分解释：
    - pending 删除
    - 转 known 并入库
@@ -172,7 +172,7 @@ details 子结构：
 
 ### A. 参考模式 reference
 
-1. 在主回复前检索相关黑话。
+1. 在主回复前检索相关短语。
 2. 以“可选参考”片段注入 prompt，不强制改写。
 3. 额外注入“待解明提问建议”列表（数量受限）。
 
@@ -181,10 +181,10 @@ details 子结构：
 ### B. 润色模式 polish
 
 1. 先得到原始回复。
-2. 对原始回复分句检索可替换黑话。
+2. 对原始回复分句检索可替换短语。
 3. 触发二次改写请求，仅做语言风格润色，不改变事实语义。
 
-优点：黑话融合更自然。
+优点：短语融合更自然。
 缺点：增加一次调用和时延。
 
 默认建议：reference，调试稳定后再启用 polish。
@@ -205,11 +205,11 @@ details 子结构：
 2. 每次仅替换 1 个标签，保持人格连续性。
 3. 新标签先进入 candidate，达到阈值后升为 active。
 
-### 标签对黑话检索的作用
+### 标签对短语检索的作用
 
 1. 强过滤：完全不相容标签可直接排除。
 2. 软加权：相容标签提升召回得分。
-3. 回退策略：过滤后为空时允许少量“普通网民”黑话兜底。
+3. 回退策略：过滤后为空时允许少量“普通网民”短语兜底。
 
 ## 与 streaming_studio 的接入点
 
@@ -217,7 +217,7 @@ details 子结构：
 
 1. 新增开关与实例：enable_jargon_tags。
 2. 在 send_comment 时转发 comment 给 jargon manager（非阻塞）。
-3. 在生成 prompt 前调用 format_context 注入黑话参考与待提问项。
+3. 在生成 prompt 前调用 format_context 注入短语参考与待提问项。
 4. 在回复后调用 post_reply（异步），触发学习与修订。
 5. 提供 jargon_debug_state 供调试台读取。
 
@@ -226,8 +226,8 @@ details 子结构：
 扩展 state collector 和 monitor 页面：
 
 1. state_collector 增加 jargon_tags 快照。
-2. monitor 新增“黑话与标签”卡片，显示：
-   - 已知黑话数量
+2. monitor 新增“短语与标签”卡片，显示：
+   - 已知短语数量
    - 待解明数量
    - 本轮新学条目
    - active_tags
@@ -264,13 +264,13 @@ details 子结构：
 - [x] 标签低频轮换策略（按时间窗口渐进替换，每次最多替换 1 个）
 - [x] 启动参数支持模式切换（reference/polish）
 - [x] 接入基于时间和主循环的按天重要度（weight）平滑衰减。
-- [x] 使用联网 Agent（DuckDuckGo 工具搜索）增强初始预设黑话数据集的内容质量。
+- [x] 使用联网 Agent（DuckDuckGo 工具搜索）增强初始预设短语数据集的内容质量。
 
 ### Phase 1: 最小可用闭环
 
 1. 数据模型 + 存储 + 人工导入接口
 2. reference 模式注入
-3. 黑话判官主请求
+3. 短语判官主请求
 4. pending 状态机
 5. debug_state 基础字段
 
@@ -298,7 +298,7 @@ details 子结构：
 2. 是否提供了人工导入和 AI 自动学习双入口。
 3. 是否实现 pending 到 known 的完整状态迁移。
 4. 是否避免重复追问并支持放弃机制。
-5. 是否有标签约束，避免黑话风格失控。
+5. 是否有标签约束，避免短语风格失控。
 6. 是否支持 reference 和 polish 模式切换。
 7. 是否已定义 debug_state 并接入调试台。
 
@@ -309,7 +309,7 @@ details 子结构：
 3. [x] 在 streaming_studio 添加 enable_jargon_tags 开关与生命周期接入。
 4. [x] 在 debug_console 增加 jargon_tags 状态展示。
 5. [x] 增加基础测试脚本（pending 迁移、标签轮换、polish 回退）。
-6. [x] 补齐 JSON 手动导入接口（黑话/标签）。
+6. [x] 补齐 JSON 手动导入接口（短语/标签）。
 
 
 ## 新增机制: 标签个性化语录 (Tag-Corpus Integration)
@@ -321,7 +321,7 @@ details 子结构：
 
 ## 新增机制: 间接标签 RAG 降权召回 (Indirect Tag Matching)
 
-为支持“主推标签外，也能以较低权重检索到相关风格的黑话”，我们对 RAG 的相关逻辑做出了以下升级：
+为支持“主推标签外，也能以较低权重检索到相关风格的短语”，我们对 RAG 的相关逻辑做出了以下升级：
 1. `init_tags.json` 内部的 `related_tags` 全面互相指向主播的“内置性格营业面具”。
 2. `JargonRetriever` 新增了 `indirect_tag_match_boost` 权重参数（目前配置为 `1.05`，低于主标签的 `1.2`）。
-3. RAG 召回黑话并在最后进行标签提权过滤时，若未完全命中 `active_tags`，但命中了 `active_tags` 的相关预设邻近标签 (`related_tags`)，则依然将其选入过滤高优列表中，但赋予其较低的首选权重，避免越俎代庖。
+3. RAG 召回短语并在最后进行标签提权过滤时，若未完全命中 `active_tags`，但命中了 `active_tags` 的相关预设邻近标签 (`related_tags`)，则依然将其选入过滤高优列表中，但赋予其较低的首选权重，避免越俎代庖。

@@ -47,11 +47,11 @@ def main():
   )
   parser.add_argument(
     "--jargon-tags", action="store_true", default=True,
-    help="启用黑话与标签系统",
+    help="启用短语与标签系统",
   )
   parser.add_argument(
     "--jargon-mode", default="reference", choices=["reference", "polish"],
-    help="黑话系统模式（默认 reference）",
+    help="短语系统模式（默认 reference）",
   )
 
   args = parser.parse_args()

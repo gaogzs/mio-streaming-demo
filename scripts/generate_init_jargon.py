@@ -1,6 +1,6 @@
 """
-初始化黑话与标签数据生成脚本
-调用大模型或Agent生成一批初始的标签和黑话，保存为 JSON 文件，用于后续导入
+初始化短语与标签数据生成脚本
+调用大模型或 Agent 生成一批初始的标签和短语，保存为 JSON 文件，用于后续导入
 """
 
 import argparse
@@ -63,12 +63,12 @@ async def generate_tags(model_or_agent, existing_tags: list[str]) -> str:
 
 async def generate_jargons(model_or_agent, tag_names: list[str], existing_jargons: list[str]) -> str:
   prompt = f"""
-  基于以下标签/群体，请生成 20 个近期网络直播中或网络上常见的黑话（网络流行语或直播梗）。
-  如果带有搜索工具，请先自行搜索“近期网络直播流行语 黑话 梗”以获取最新信息。
+  基于以下标签/群体，请生成 20 个近期网络直播中或网络上常见的短语（网络流行语或直播梗）。
+  如果带有搜索工具，请先自行搜索“近期网络直播流行语 短语 梗”以获取最新信息。
   
   可用人群标签：{tag_names}
   
-  【已有黑话，不要重复生成以下词语】：
+  【已有短语，不要重复生成以下词语】：
   {", ".join(existing_jargons) if existing_jargons else "无"}
 
   请不要输出多余格式，直接输出纯 JSON 数组，包含具体字段：
@@ -80,8 +80,8 @@ async def generate_jargons(model_or_agent, tag_names: list[str], existing_jargon
       "phrase": "（词汇本身，如：破防、急了、上头、下饭等）",
       "brief": "（一句话简要含义）",
       "details": "（详细用法、来源、与情感关联）",
-      "tags": ["（包含在上述标签中的1到2个适合该黑话的人群标签）"],
-      "examples": ["正常表达: ...", "黑话表达: ..."],
+      "tags": ["（包含在上述标签中的1到2个适合该短语的人群标签）"],
+      "examples": ["正常表达: ...", "短语表达: ..."],
       "status": "known",
       "confidence": 0.9,
       "source_refs": ["init_generation"]
@@ -145,16 +145,16 @@ async def main():
   combined_tags = existing_tags + [t.get("name") for t in tags_data if t.get("name")]
   tag_names = list(set(combined_tags))
 
-  print(f"\n=== 开始生成黑话数据 (已有 {len(existing_jargons)} 个黑话) ===")
+  print(f"\n=== 开始生成短语数据 (已有 {len(existing_jargons)} 个短语) ===")
   jargons_raw = await generate_jargons(model, tag_names, existing_jargons)
   jargons_json_str = clean_json(jargons_raw)
   
   jargons_data = []
   try:
     jargons_data = json.loads(jargons_json_str)
-    print(f"解析成功，生成 {len(jargons_data)} 个黑话。")
+    print(f"解析成功，生成 {len(jargons_data)} 个短语。")
   except Exception as e:
-    print(f"解析黑话 JSON 失败: {e}\n模型原始内容:\n{jargons_raw}")
+    print(f"解析短语 JSON 失败: {e}\n模型原始内容:\n{jargons_raw}")
     return
   
   # 如果已有文件，先读取追加，避免覆写
@@ -170,7 +170,7 @@ async def main():
   print(f"\n标签已存至: {tags_file}")
   
   jargons_file.write_text(json.dumps(jargons_data, ensure_ascii=False, indent=2), encoding="utf-8")
-  print(f"黑话已存至: {jargons_file}")
+  print(f"短语已存至: {jargons_file}")
 
   print("\n生成完毕！现在可以使用 scripts/import_init_data.py 将数据导入到本地库。")
 

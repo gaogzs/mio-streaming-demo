@@ -62,15 +62,15 @@ prompts/              # 通用提示词
   prompt_loader.py    #   PromptLoader（加载 base_instruction + 委托 PersonaLoader）
   base_instruction.txt #  主播基础指令
 
-jargon_tags/          # 黑话与标签机制模块
-  config.py           #   黑话标签生成、权重衰变与过滤配置
-  models.py           #   黑话记录、标签缓存、解析状态的数据类
+jargon_tags/          # 短语与标签机制模块
+  config.py           #   短语标签生成、权重衰变与过滤配置
+  models.py           #   短语记录、标签缓存、解析状态的数据类
   archive.py          #   基于JSON的脱水导入/导出
   store.py            #   带权重的精确与向量复合检索本地持久化仓库
   retriever.py        #   带权重的分发与提取处理器
-  judge.py            #   对新的黑话及待定词条进行判断
+  judge.py            #   对新的短语及待定词条进行判断
   tag_judge.py        #   自动识别观众群体的标签判官
-  formatter.py        #   返回整合后的黑话提示注入文本
+  formatter.py        #   返回整合后的短语提示注入文本
   manager.py          #   主控制器，生命周期维护及自动时间权重衰变
 
 topic_manager/        # 话题管理器（可选模块，enable_topic_manager 开启）

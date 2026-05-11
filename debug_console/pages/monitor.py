@@ -47,7 +47,7 @@ def create_monitor_page(collector: StateCollector) -> None:
     # 话题管理器（放在 prompt 下方）
     containers["topics"] = _build_topic_card()
 
-    # 黑话与标签系统
+    # 短语与标签系统
     containers["jargon"] = _build_jargon_card()
 
     # 记忆系统
@@ -139,10 +139,10 @@ def _build_llm_card() -> dict:
 
 
 def _build_jargon_card() -> dict:
-  """构建黑话与标签系统卡片"""
+  """构建短语与标签系统卡片"""
   refs = {}
   with ui.card().classes("w-full"):
-    ui.label("黑话与标签系统").classes("text-lg font-bold")
+    ui.label("短语与标签系统").classes("text-lg font-bold")
     ui.separator()
     with ui.column().classes("gap-1"):
       refs["status"] = ui.label()
@@ -339,12 +339,12 @@ def _update_llm_card(refs: dict, state: dict) -> None:
 
 
 def _update_jargon_card(refs: dict, state: dict) -> None:
-  """更新黑话与标签系统卡片"""
+  """更新短语与标签系统卡片"""
   if not refs:
     return
 
   if state is None:
-    refs["status"].text = "黑话与标签系统未启用"
+    refs["status"].text = "短语与标签系统未启用"
     refs["counts"].text = ""
     refs["active_tags"].text = ""
     refs["questions"].text = ""
@@ -358,7 +358,7 @@ def _update_jargon_card(refs: dict, state: dict) -> None:
   vector = "向量已启用" if state.get("vector_enabled") else "仅精确匹配"
   refs["status"].text = f"状态: {status}  模式: {mode}  检索: {vector}"
   refs["counts"].text = (
-    f"已知黑话: {state.get('known_jargon_count', 0)}  "
+    f"已知短语: {state.get('known_jargon_count', 0)}  "
     f"待解明: {state.get('pending_jargon_count', 0)}  "
     f"标签: {state.get('tag_count', 0)}"
   )

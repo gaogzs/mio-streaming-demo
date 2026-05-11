@@ -1,5 +1,5 @@
 """
-黑话与标签系统编排器
+短语与标签系统编排器
 """
 
 import asyncio
@@ -47,12 +47,12 @@ logger = logging.getLogger(__name__)
 
 class JargonTagsManager:
   """
-  黑话与标签系统顶层编排器
+  短语与标签系统顶层编排器
 
   Phase 1 能力：
-  - 评论中疑似黑话候选发现（规则版判官）
+  - 评论中疑似短语候选发现（规则版判官）
   - 待解明条目管理与追问次数控制
-  - 已知黑话逐字 + 向量检索
+  - 已知短语逐字 + 向量检索
   - 参考模式 prompt 注入
   """
 
@@ -136,7 +136,7 @@ class JargonTagsManager:
 
   def format_context(self, comments: list["Comment"]) -> str:
     """
-    生成注入主 prompt 的黑话上下文（参考模式）
+    生成注入主 prompt 的短语上下文（参考模式）
 
     当前骨架只返回占位文本。
     """
@@ -195,7 +195,7 @@ class JargonTagsManager:
     回复后处理
 
     当前阶段采用规则判定：
-    - 从评论中提取疑似黑话候选
+    - 从评论中提取疑似短语候选
     - 维护 pending 集合
     - 对超过追问阈值的条目执行放弃并转入已知
     """
@@ -216,7 +216,7 @@ class JargonTagsManager:
     comments: list["Comment"],
   ) -> str:
     """
-    润色模式：基于原回复和候选黑话二次改写
+    润色模式：基于原回复和候选短语二次改写
 
     失败时回退原回复，保证主流程稳定。
     """
@@ -270,7 +270,7 @@ class JargonTagsManager:
       return original_response
 
   def upsert_jargon(self, entry: JargonEntry) -> None:
-    """人工或自动写入黑话条目"""
+    """人工或自动写入短语条目"""
     self._store.upsert_known(entry)
 
   def upsert_tag(self, entry: TagEntry) -> None:
@@ -278,7 +278,7 @@ class JargonTagsManager:
     self._store.upsert_tag(entry)
 
   def clear_all_data(self) -> None:
-    """清空当前黑话与标签数据"""
+    """清空当前短语与标签数据"""
     self._store.clear()
     self._store.upsert_tag(self._persona_tag_entry)
     self._tag_state = self._build_initial_tag_state()
@@ -303,7 +303,7 @@ class JargonTagsManager:
     return tuple(merged)
 
   def _bootstrap_initial_data(self) -> None:
-    """从磁盘恢复黑话与标签数据"""
+    """从磁盘恢复短语与标签数据"""
     project_root = Path(__file__).parent.parent
     persisted_dir = project_root / "data" / "jargon_store"
     seed_dir = project_root / "data" / "init_jargon_data"
@@ -322,20 +322,20 @@ class JargonTagsManager:
 
     if loaded_known or loaded_tags:
       logger.info(
-        "黑话标签数据已恢复: 已知黑话 %d 条, 标签 %d 条",
+        "短语标签数据已恢复: 已知短语 %d 条, 标签 %d 条",
         loaded_known,
         loaded_tags,
       )
 
   def _load_known_from_candidates(self, candidates: list[Path]) -> int:
-    """从候选文件加载已知黑话"""
+    """从候选文件加载已知短语"""
     for path in candidates:
       if not path.exists():
         continue
       try:
         entries = import_known_jargons(str(path))
       except Exception as exc:
-        logger.warning("加载黑话文件失败 %s: %s", path, exc)
+        logger.warning("加载短语文件失败 %s: %s", path, exc)
         continue
 
       for entry in entries:
@@ -362,7 +362,7 @@ class JargonTagsManager:
     return 0
 
   def import_known_jargons_from_json(self, path: str) -> int:
-    """从 JSON 批量导入已知黑话，返回导入条数"""
+    """从 JSON 批量导入已知短语，返回导入条数"""
     entries = import_known_jargons(path)
     for entry in entries:
       self._store.upsert_known(entry)
@@ -376,7 +376,7 @@ class JargonTagsManager:
     return len(entries)
 
   def export_known_jargons_to_json(self, path: str) -> None:
-    """导出已知黑话到 JSON"""
+    """导出已知短语到 JSON"""
     export_known_jargons(path, self._store.list_known())
 
   def export_tags_to_json(self, path: str) -> None:
@@ -444,7 +444,7 @@ class JargonTagsManager:
       except asyncio.CancelledError:
         break
       except Exception as exc:
-        logger.exception("黑话分析循环失败: %s", exc)
+        logger.exception("短语分析循环失败: %s", exc)
 
   def _get_model(self) -> BaseChatModel:
     """获取小模型（延迟初始化）"""
@@ -454,7 +454,7 @@ class JargonTagsManager:
     return self._judge_model
 
   async def _run_llm_judges(self, comments: list["Comment"]) -> None:
-    """执行 LLM 黑话判官与标签判官（可降级）"""
+    """执行 LLM 短语判官与标签判官（可降级）"""
     if not self._config.enable_llm_judge:
       return
 
@@ -478,7 +478,7 @@ class JargonTagsManager:
     model: BaseChatModel,
     comments: list["Comment"],
   ) -> None:
-    """运行黑话判官并应用结果"""
+    """运行短语判官并应用结果"""
     comments_text = "\n".join(
       f"- {c.nickname}: {c.content}" for c in comments
     )
@@ -511,7 +511,7 @@ class JargonTagsManager:
     text = result.content if hasattr(result, "content") else str(result)
     data = parse_json_response(text)
     if data is None:
-      logger.warning("黑话判官返回无法解析 JSON")
+      logger.warning("短语判官返回无法解析 JSON")
       return
 
     normalized = normalize_discover_output(data)
@@ -550,7 +550,7 @@ class JargonTagsManager:
     self._apply_tag_output(normalized)
 
   def _apply_discover_output(self, data: dict) -> None:
-    """应用黑话判官结果"""
+    """应用短语判官结果"""
     new_pending = 0
     resolved = 0
     revised = 0
@@ -568,7 +568,7 @@ class JargonTagsManager:
       self._store.upsert_pending(
         PendingJargon(
           phrase=phrase,
-          candidate_brief=str(item.get("brief", "待解明黑话候选"))[:60],
+          candidate_brief=str(item.get("brief", "待解明短语候选"))[:60],
           candidate_tags=self._persona_tag_tuple(),
           notes="来自 LLM 判官候选",
         )
@@ -643,7 +643,7 @@ class JargonTagsManager:
           resolved_count=resolved,
           resolved_phrases=resolved_phrases,
           revised_count=revised,
-          notes="LLM 黑话判官结果已应用",
+          notes="LLM 短语判官结果已应用",
           analyzed_at=datetime.now(),
         )
       )
@@ -744,7 +744,7 @@ class JargonTagsManager:
     )
 
   def _learn_from_comments(self, comments: list["Comment"]) -> None:
-    """从评论中提取疑似黑话并写入 pending"""
+    """从评论中提取疑似短语并写入 pending"""
     if not comments:
       return
 
@@ -764,7 +764,7 @@ class JargonTagsManager:
         self._store.upsert_pending(
           PendingJargon(
             phrase=phrase,
-            candidate_brief="待观众解释的疑似黑话",
+            candidate_brief="待观众解释的疑似短语",
             candidate_tags=self._persona_tag_tuple(),
             notes=f"初次发现于 {comment.nickname} 的弹幕",
             seen_count=1,
@@ -778,7 +778,7 @@ class JargonTagsManager:
         JargonDecision(
           new_pending_count=new_pending_count,
           new_pending_phrases=tuple(new_pending_phrases_list),
-          notes=f"新增待解明黑话 {new_pending_count} 条",
+          notes=f"新增待解明短语 {new_pending_count} 条",
           analyzed_at=datetime.now(),
         )
       )

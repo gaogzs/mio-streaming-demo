@@ -1,5 +1,5 @@
 """
-黑话检索器
+短语检索器
 组合逐字匹配与向量检索，并使用标签作为加权信号
 """
 
@@ -10,7 +10,7 @@ from .store import JargonStore
 
 
 class JargonRetriever:
-  """黑话检索器"""
+  """短语检索器"""
 
   def __init__(
     self,
@@ -36,7 +36,7 @@ class JargonRetriever:
     active_tags: tuple[str, ...],
     top_k: int,
   ) -> list[JargonEntry]:
-    """按输入文本批量召回黑话"""
+    """按输入文本批量召回短语"""
     if not texts:
       return []
 

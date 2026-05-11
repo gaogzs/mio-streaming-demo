@@ -1,5 +1,5 @@
 """
-黑话与标签系统数据模型
+短语与标签系统数据模型
 """
 
 from dataclasses import dataclass, field
@@ -8,7 +8,7 @@ from datetime import datetime
 
 @dataclass(frozen=True)
 class JargonEntry:
-  """已知黑话条目"""
+  """已知短语条目"""
 
   entry_id: str
   phrase: str
@@ -28,7 +28,7 @@ class JargonEntry:
 
 @dataclass(frozen=True)
 class PendingJargon:
-  """待解明黑话条目"""
+  """待解明短语条目"""
 
   phrase: str
   candidate_brief: str = ""

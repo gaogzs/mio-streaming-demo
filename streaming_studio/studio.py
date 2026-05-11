@@ -60,8 +60,8 @@ class StreamingStudio:
       enable_memory: 是否启用分层记忆系统
       enable_global_memory: 是否开启全局记忆（持久化到文件），需同时开启 enable_memory
       enable_topic_manager: 是否启用话题管理器（追踪、分类和管理直播话题）
-      enable_jargon_tags: 是否启用黑话与标签系统（异步学习 + prompt 参考）
-      jargon_mode: 黑话系统模式（reference/polish）
+      enable_jargon_tags: 是否启用短语与标签系统（异步学习 + prompt 参考）
+      jargon_mode: 短语系统模式（reference/polish）
       llm_wrapper: 自定义 LLM 封装（高级用户，传入后忽略 persona/model_type/enable_memory）
       database: 自定义数据库（高级用户）
       config: 自定义行为配置（高级用户）
@@ -148,7 +148,7 @@ class StreamingStudio:
         model_type=model_type,
       )
 
-    # 黑话与标签管理器
+    # 短语与标签管理器
     self._jargon_tags = None
     if enable_jargon_tags:
       from jargon_tags import JargonTagsManager, JargonTagsConfig
@@ -196,7 +196,7 @@ class StreamingStudio:
     if self._topic_manager:
       self._topic_manager.on_comment(comment)
 
-    # 转发给黑话与标签管理器（非阻塞）
+    # 转发给短语与标签管理器（非阻塞）
     if self._jargon_tags:
       self._jargon_tags.on_comment(comment)
 
@@ -282,7 +282,7 @@ class StreamingStudio:
     if self._topic_manager:
       await self._topic_manager.start()
 
-    # 启动黑话与标签管理器
+    # 启动短语与标签管理器
     if self._jargon_tags:
       await self._jargon_tags.start()
 
@@ -301,7 +301,7 @@ class StreamingStudio:
     if self._topic_manager:
       await self._topic_manager.stop()
 
-    # 停止黑话与标签管理器
+    # 停止短语与标签管理器
     if self._jargon_tags:
       await self._jargon_tags.stop()
 
@@ -865,10 +865,10 @@ class StreamingStudio:
 
   def jargon_debug_state(self) -> Optional[dict]:
     """
-    获取黑话与标签系统的调试状态快照
+    获取短语与标签系统的调试状态快照
 
     Returns:
-      黑话与标签系统状态字典，未启用时返回 None
+      短语与标签系统状态字典，未启用时返回 None
     """
     if self._jargon_tags is None:
       return None

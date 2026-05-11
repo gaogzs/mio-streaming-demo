@@ -42,8 +42,8 @@ def run(
     port: 监听端口
     enable_global_memory: 是否开启全局记忆（持久化到文件）
     enable_topic_manager: 是否启用话题管理器
-    enable_jargon_tags: 是否启用黑话与标签系统
-    jargon_mode: 黑话系统模式（reference/polish）
+    enable_jargon_tags: 是否启用短语与标签系统
+    jargon_mode: 短语系统模式（reference/polish）
   """
   # 初始化直播间
   studio = StreamingStudio(

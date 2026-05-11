@@ -1,5 +1,5 @@
 """
-黑话与标签系统配置
+短语与标签系统配置
 """
 
 from dataclasses import dataclass
@@ -7,12 +7,12 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class JargonTagsConfig:
-  """黑话与标签系统配置"""
+  """短语与标签系统配置"""
 
   # 模式切换: reference / polish
   mode: str = "reference"
 
-  # 黑话判官周期分析
+  # 短语判官周期分析
   analysis_interval_seconds: float = 30.0
   comment_window_size: int = 30
   enable_llm_judge: bool = True
@@ -29,7 +29,7 @@ class JargonTagsConfig:
   active_tag_count: int = 3
   min_tag_confidence: float = 0.55
   persona_tag_name: str | None = None
-  persona_tag_definition: str = "主播本人专属标签，记录该主播自己产生的梗、黑话和风格"
+  persona_tag_definition: str = "主播本人专属标签，记录该主播自己产生的梗、短语和风格"
 
   # 检索权重
   retrieval_top_k: int = 8

@@ -1,5 +1,5 @@
 """
-黑话与标签存储
+短语与标签存储
 支持精确匹配与向量检索
 """
 
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class JargonStore:
-  """黑话与标签数据存储"""
+  """短语与标签数据存储"""
 
   def __init__(
     self,
@@ -50,11 +50,11 @@ class JargonStore:
     return self._vector_store is not None
 
   def list_known(self) -> list[JargonEntry]:
-    """获取所有已知黑话"""
+    """获取所有已知短语"""
     return list(self._known.values())
 
   def list_pending(self) -> list[PendingJargon]:
-    """获取所有待解明黑话"""
+    """获取所有待解明短语"""
     return list(self._pending.values())
 
   def list_tags(self) -> list[TagEntry]:
@@ -66,18 +66,18 @@ class JargonStore:
     return self._tags.get(name.strip())
 
   def find_known_by_phrase(self, phrase: str) -> Optional[JargonEntry]:
-    """按黑话原文查找已知条目"""
+    """按短语原文查找已知条目"""
     entry_id = self._phrase_index.get(phrase.strip())
     if entry_id is None:
       return None
     return self._known.get(entry_id)
 
   def find_pending_by_phrase(self, phrase: str) -> Optional[PendingJargon]:
-    """按黑话原文查找待解明条目"""
+    """按短语原文查找待解明条目"""
     return self._pending.get(phrase.strip())
 
   def upsert_known(self, entry: JargonEntry) -> None:
-    """写入或更新已知黑话"""
+    """写入或更新已知短语"""
     normalized = entry.phrase.strip()
     saved = replace(entry, phrase=normalized, updated_at=datetime.now())
     self._known[saved.entry_id] = saved
@@ -168,7 +168,7 @@ class JargonStore:
     )
 
   def clear(self) -> None:
-    """清空全部黑话与标签数据"""
+    """清空全部短语与标签数据"""
     self._known.clear()
     self._pending.clear()
     self._tags.clear()
@@ -196,7 +196,7 @@ class JargonStore:
     query: str,
     top_k: int = 8,
   ) -> list[tuple[JargonEntry, float]]:
-    """在已知黑话中执行向量检索"""
+    """在已知短语中执行向量检索"""
     if self._vector_store is None:
       return []
 
@@ -250,7 +250,7 @@ class JargonStore:
     tags = "、".join(entry.tags) if entry.tags else "无"
     examples = " / ".join(entry.examples) if entry.examples else "无"
     return (
-      f"黑话: {entry.phrase}\n"
+      f"短语: {entry.phrase}\n"
       f"简要含义: {entry.brief}\n"
       f"详细说明: {entry.details}\n"
       f"例句对照: {examples}\n"

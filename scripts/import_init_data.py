@@ -1,5 +1,5 @@
 """
-初始化黑话与标签数据导入脚本
+初始化短语与标签数据导入脚本
 将 generate_init_jargon.py 生成的 json 文件自动注入到向量库与内存库中
 """
 
@@ -35,7 +35,7 @@ def _resolve_source_path(raw_path: str, source_dir: Path) -> Path:
 
 
 async def main():
-  parser = argparse.ArgumentParser(description="初始化黑话与标签数据")
+  parser = argparse.ArgumentParser(description="初始化短语与标签数据")
   parser.add_argument(
     "--import-mode",
     choices=["append", "overwrite"],
@@ -55,7 +55,7 @@ async def main():
   parser.add_argument(
     "--jargons-file",
     default="mined_jargons.json",
-    help="黑话源文件路径；只填文件名时会在 --source-dir 下查找",
+    help="短语源文件路径；只填文件名时会在 --source-dir 下查找",
   )
   args = parser.parse_args()
 
@@ -70,7 +70,7 @@ async def main():
     return
 
   print("正在初始化本地数据库与向量环境...")
-  # 我们需要一个真实的 db 环境，这里由于只是写入黑话库，
+  # 我们需要一个真实的 db 环境，这里由于只是写入短语库，
   # CommentDatabase 只是透传，可以直接用基于文件的默认路径
   db = CommentDatabase(db_path=str(project_root / "data" / "studio_history.db"))
   
@@ -84,7 +84,7 @@ async def main():
   )
 
   if args.import_mode == "overwrite":
-    print("当前为覆盖式导入：将清空现有黑话与标签数据后重新导入")
+    print("当前为覆盖式导入：将清空现有短语与标签数据后重新导入")
     manager.clear_all_data()
 
   if tags_file.exists():
@@ -93,9 +93,9 @@ async def main():
     print(f"成功导入 {count} 个标签！")
 
   if jargons_file.exists():
-    print(f"正在从 {jargons_file} 导入已知黑话（这可能会触发向量索引重新生成，稍等片刻）...")
+    print(f"正在从 {jargons_file} 导入已知短语（这可能会触发向量索引重新生成，稍等片刻）...")
     count = manager.import_known_jargons_from_json(str(jargons_file))
-    print(f"成功导入 {count} 个黑话条目！")
+    print(f"成功导入 {count} 个短语条目！")
 
   persist_dir = project_root / "data" / "jargon_store"
   persist_known = persist_dir / "known_jargons.json"
