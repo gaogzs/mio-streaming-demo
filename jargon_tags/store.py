@@ -80,6 +80,19 @@ class JargonStore:
     """写入或更新已知短语"""
     normalized = entry.phrase.strip()
     saved = replace(entry, phrase=normalized, updated_at=datetime.now())
+
+    removed_ids: set[str] = set()
+    existing_id = self._phrase_index.get(normalized)
+    if existing_id is not None and existing_id != saved.entry_id:
+      removed_ids.add(existing_id)
+      self._known.pop(existing_id, None)
+
+    current = self._known.get(saved.entry_id)
+    if current is not None:
+      current_phrase = current.phrase.strip()
+      if current_phrase != normalized and self._phrase_index.get(current_phrase) == saved.entry_id:
+        self._phrase_index.pop(current_phrase, None)
+
     self._known[saved.entry_id] = saved
     self._phrase_index[normalized] = saved.entry_id
 
@@ -87,7 +100,8 @@ class JargonStore:
       return
 
     try:
-      self._vector_store.delete([saved.entry_id])
+      delete_ids = {saved.entry_id, *removed_ids}
+      self._vector_store.delete(list(delete_ids))
       doc = self._build_vector_doc(saved)
       metadata = {
         "entry_id": saved.entry_id,

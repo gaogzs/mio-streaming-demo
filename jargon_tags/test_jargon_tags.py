@@ -107,6 +107,40 @@ def test_persona_tag_is_fixed_and_applied() -> None:
   _assert(pending.candidate_tags == (persona_tag,), "新短语未归属主播专属标签")
 
 
+def test_upsert_known_overwrites_same_phrase() -> None:
+  """验证同 phrase 的短语写入会覆盖旧条目。"""
+  db = CommentDatabase(db_path=":memory:")
+  cfg = JargonTagsConfig(mode="reference", enable_llm_judge=False)
+  manager = JargonTagsManager(persona="karin", database=db, config=cfg, bootstrap_from_disk=False)
+
+  manager._store.upsert_known(
+    JargonEntry(
+      entry_id="old_entry",
+      phrase="同款梗",
+      brief="旧解释",
+      details="旧详情",
+      tags=("A",),
+    )
+  )
+  manager._store.upsert_known(
+    JargonEntry(
+      entry_id="new_entry",
+      phrase="同款梗",
+      brief="新解释",
+      details="新详情",
+      tags=("B",),
+    )
+  )
+
+  matched = manager._store.find_known_by_phrase("同款梗")
+  all_known = manager._store.list_known()
+
+  _assert(matched is not None, "重复 phrase 未能找到条目")
+  _assert(matched.entry_id == "new_entry", "重复 phrase 未覆盖为最新条目")
+  _assert(matched.brief == "新解释", "重复 phrase 未更新内容")
+  _assert(len(all_known) == 1, "重复 phrase 仍然残留旧条目")
+
+
 async def test_polish_fallback() -> None:
   """验证 polish 模式在无模型可用时回退原回复"""
   db = CommentDatabase(db_path=":memory:")
@@ -150,6 +184,9 @@ async def main() -> None:
 
   test_persona_tag_is_fixed_and_applied()
   print("[PASS] 主播专属标签固定与归属")
+
+  test_upsert_known_overwrites_same_phrase()
+  print("[PASS] 重复短语覆盖")
 
   await test_polish_fallback()
   print("[PASS] polish 回退")

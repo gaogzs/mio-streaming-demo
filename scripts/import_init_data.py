@@ -5,6 +5,7 @@
 
 import asyncio
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -13,7 +14,7 @@ project_root = Path(__file__).parent.parent
 if str(project_root) not in sys.path:
   sys.path.insert(0, str(project_root))
 
-from jargon_tags import JargonTagsManager, JargonTagsConfig
+from jargon_tags import JargonEntry, JargonTagsManager, JargonTagsConfig, TagEntry
 from streaming_studio.database import CommentDatabase
 
 
@@ -34,6 +35,133 @@ def _resolve_source_path(raw_path: str, source_dir: Path) -> Path:
   return project_root / path
 
 
+def _collect_json_files(source_path: Path) -> list[Path]:
+  """收集目录下的 JSON 文件，或直接返回单个 JSON 文件。"""
+  if source_path.is_file():
+    return [source_path] if source_path.suffix.lower() == ".json" else []
+  if not source_path.exists():
+    return []
+  return sorted(path for path in source_path.rglob("*.json") if path.is_file())
+
+
+def _dedupe_paths(paths: list[Path]) -> list[Path]:
+  """按绝对路径去重并保持首次出现顺序。"""
+  seen: dict[str, Path] = {}
+  for path in paths:
+    key = str(path.resolve())
+    if key not in seen:
+      seen[key] = path
+  return list(seen.values())
+
+
+def _to_datetime(value: object):
+  """将输入值转换为 datetime。"""
+  from datetime import datetime
+
+  if isinstance(value, str) and value.strip():
+    try:
+      return datetime.fromisoformat(value)
+    except ValueError:
+      pass
+  return datetime.now()
+
+
+def _to_float(value: object, default: float) -> float:
+  """将输入值转换为 float。"""
+  try:
+    return float(value)
+  except (TypeError, ValueError):
+    return default
+
+
+def _to_int(value: object, default: int) -> int:
+  """将输入值转换为 int。"""
+  try:
+    return int(value)
+  except (TypeError, ValueError):
+    return default
+
+
+def _to_str_tuple(value: object) -> tuple[str, ...]:
+  """将输入值转换为字符串元组。"""
+  if isinstance(value, list):
+    items = [str(item).strip() for item in value if str(item).strip()]
+    return tuple(items)
+  return tuple()
+
+
+def _is_jargon_item(item: dict[str, object]) -> bool:
+  """判断条目是否为短语条目。"""
+  return bool(str(item.get("phrase", "")).strip()) and bool(str(item.get("brief", "")).strip()) and bool(str(item.get("details", "")).strip())
+
+
+def _is_tag_item(item: dict[str, object]) -> bool:
+  """判断条目是否为标签条目。"""
+  return bool(str(item.get("name", "")).strip()) and bool(str(item.get("definition", "")).strip())
+
+
+def _import_json_file(manager: JargonTagsManager, source_file: Path) -> tuple[int, int, int]:
+  """从单个 JSON 文件中自动识别并导入短语与标签。"""
+  raw = json.loads(source_file.read_text(encoding="utf-8"))
+  if isinstance(raw, dict):
+    items = [raw]
+  elif isinstance(raw, list):
+    items = raw
+  else:
+    print(f"跳过 {source_file}：顶层必须是数组或对象")
+    return 0, 0, 1
+
+  jargon_count = 0
+  tag_count = 0
+  skipped_count = 0
+
+  for item in items:
+    if not isinstance(item, dict):
+      skipped_count += 1
+      continue
+
+    if _is_jargon_item(item):
+      phrase = str(item.get("phrase", "")).strip()
+      entry = JargonEntry(
+        entry_id=str(item.get("entry_id", "")).strip() or f"manual_{phrase}",
+        phrase=phrase,
+        brief=str(item.get("brief", "")).strip(),
+        details=str(item.get("details", "")).strip(),
+        tags=_to_str_tuple(item.get("tags", [])),
+        examples=_to_str_tuple(item.get("examples", [])),
+        status=str(item.get("status", "known")),
+        confidence=_to_float(item.get("confidence", 0.5), 0.5),
+        weight=_to_float(item.get("weight", 1.0), 1.0),
+        last_decay_at=_to_datetime(item.get("last_decay_at")),
+        source_refs=_to_str_tuple(item.get("source_refs", [])),
+        version=_to_int(item.get("version", 1), 1),
+        created_at=_to_datetime(item.get("created_at")),
+        updated_at=_to_datetime(item.get("updated_at")),
+      )
+      manager.upsert_jargon(entry)
+      jargon_count += 1
+      continue
+
+    if _is_tag_item(item):
+      entry = TagEntry(
+        name=str(item.get("name", "")).strip(),
+        definition=str(item.get("definition", "")).strip(),
+        examples=_to_str_tuple(item.get("examples", [])),
+        canonical_quotes=_to_str_tuple(item.get("canonical_quotes", [])),
+        related_tags=_to_str_tuple(item.get("related_tags", [])),
+        confidence=_to_float(item.get("confidence", 0.5), 0.5),
+        created_at=_to_datetime(item.get("created_at")),
+        updated_at=_to_datetime(item.get("updated_at")),
+      )
+      manager.upsert_tag(entry)
+      tag_count += 1
+      continue
+
+    skipped_count += 1
+
+  return jargon_count, tag_count, skipped_count
+
+
 async def main():
   parser = argparse.ArgumentParser(description="初始化短语与标签数据")
   parser.add_argument(
@@ -45,17 +173,17 @@ async def main():
   parser.add_argument(
     "--source-dir",
     default="data/init_jargon_data",
-    help="默认源目录；当 --tags-file/--jargons-file 仅填文件名时在该目录查找",
+    help="源目录；会自动递归导入该目录下的所有 JSON 文件",
   )
   parser.add_argument(
     "--tags-file",
     default="mined_tags.json",
-    help="标签源文件路径；只填文件名时会在 --source-dir 下查找",
+    help="额外的标签文件路径；会与 --source-dir 扫描结果合并后去重导入",
   )
   parser.add_argument(
     "--jargons-file",
     default="mined_jargons.json",
-    help="短语源文件路径；只填文件名时会在 --source-dir 下查找",
+    help="额外的短语文件路径；会与 --source-dir 扫描结果合并后去重导入",
   )
   args = parser.parse_args()
 
@@ -65,8 +193,12 @@ async def main():
   tags_file = _resolve_source_path(args.tags_file, source_dir)
   jargons_file = _resolve_source_path(args.jargons_file, source_dir)
 
-  if not tags_file.exists() and not jargons_file.exists():
-    print("未找到需要导入的 JSON 文件，请检查 --tags-file / --jargons-file 参数")
+  source_files = _dedupe_paths(_collect_json_files(source_dir))
+  explicit_files = [path for path in (tags_file, jargons_file) if path.exists()]
+  import_files = _dedupe_paths(source_files + explicit_files)
+
+  if not import_files:
+    print("未找到需要导入的 JSON 文件，请检查 --source-dir / --tags-file / --jargons-file 参数")
     return
 
   print("正在初始化本地数据库与向量环境...")
@@ -87,15 +219,19 @@ async def main():
     print("当前为覆盖式导入：将清空现有短语与标签数据后重新导入")
     manager.clear_all_data()
 
-  if tags_file.exists():
-    print(f"正在从 {tags_file} 导入标签...")
-    count = manager.import_tags_from_json(str(tags_file))
-    print(f"成功导入 {count} 个标签！")
+  total_jargons = 0
+  total_tags = 0
+  total_skipped = 0
 
-  if jargons_file.exists():
-    print(f"正在从 {jargons_file} 导入已知短语（这可能会触发向量索引重新生成，稍等片刻）...")
-    count = manager.import_known_jargons_from_json(str(jargons_file))
-    print(f"成功导入 {count} 个短语条目！")
+  for source_file in import_files:
+    print(f"正在处理 {source_file}...")
+    jargon_count, tag_count, skipped_count = _import_json_file(manager, source_file)
+    total_jargons += jargon_count
+    total_tags += tag_count
+    total_skipped += skipped_count
+    print(f"  导入完成：短语 {jargon_count} 条，标签 {tag_count} 条，跳过 {skipped_count} 条")
+
+  print(f"\n汇总：短语 {total_jargons} 条，标签 {total_tags} 条，跳过 {total_skipped} 条")
 
   persist_dir = project_root / "data" / "jargon_store"
   persist_known = persist_dir / "known_jargons.json"

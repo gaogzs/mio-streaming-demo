@@ -27,6 +27,7 @@ def run(
   model_name: Optional[str] = None,
   persona: str = "karin",
   port: int = 8080,
+  enable_memory: bool = True,
   enable_global_memory: bool = False,
   enable_topic_manager: bool = False,
   enable_jargon_tags: bool = False,
@@ -40,6 +41,7 @@ def run(
     model_name: 模型名称
     persona: 角色名称
     port: 监听端口
+    enable_memory: 是否启用记忆系统（默认开启）
     enable_global_memory: 是否开启全局记忆（持久化到文件）
     enable_topic_manager: 是否启用话题管理器
     enable_jargon_tags: 是否启用短语与标签系统
@@ -50,7 +52,7 @@ def run(
     persona=persona,
     model_type=model_type,
     model_name=model_name,
-    enable_memory=True,
+    enable_memory=enable_memory,
     enable_global_memory=enable_global_memory,
     enable_topic_manager=enable_topic_manager,
     enable_jargon_tags=enable_jargon_tags,
