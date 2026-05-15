@@ -143,13 +143,13 @@ class LLMWrapper:
     if scene_context:
       pre_parts.append(scene_context)
 
+    if topic_context:
+      post_parts.append(topic_context)
+
     if self._memory is not None:
       query: Union[str, list[str]] = rag_queries if rag_queries else user_input
       active_text, rag_text = self._memory.retrieve(query)
       post_parts.extend(p for p in [active_text, rag_text] if p)
-
-    if topic_context:
-      post_parts.append(topic_context)
 
     return "\n\n".join(pre_parts), "\n\n".join(post_parts)
 
