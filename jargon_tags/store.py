@@ -112,6 +112,63 @@ class JargonStore:
     except Exception as exc:
       logger.warning("写入向量索引失败: %s", exc)
 
+  def upsert_known_batch(self, entries: list[JargonEntry]) -> None:
+    """批量写入或更新已知短语"""
+    now = datetime.now()
+    all_delete_ids: set[str] = set()
+    docs_to_add: list[str] = []
+    ids_to_add: list[str] = []
+    metadatas_to_add: list[dict] = []
+
+    for entry in entries:
+      normalized = entry.phrase.strip()
+      saved = replace(entry, phrase=normalized, updated_at=now)
+
+      existing_id = self._phrase_index.get(normalized)
+      if existing_id is not None and existing_id != saved.entry_id:
+        all_delete_ids.add(existing_id)
+        self._known.pop(existing_id, None)
+
+      current = self._known.get(saved.entry_id)
+      if current is not None:
+        current_phrase = current.phrase.strip()
+        if current_phrase != normalized and self._phrase_index.get(current_phrase) == saved.entry_id:
+          self._phrase_index.pop(current_phrase, None)
+
+      self._known[saved.entry_id] = saved
+      self._phrase_index[normalized] = saved.entry_id
+
+      all_delete_ids.add(saved.entry_id)
+
+      if self._vector_store is not None:
+        doc = self._build_vector_doc(saved)
+        metadata = {
+          "entry_id": saved.entry_id,
+          "phrase": saved.phrase,
+          "tags": "|".join(saved.tags),
+        }
+        docs_to_add.append(doc)
+        ids_to_add.append(saved.entry_id)
+        metadatas_to_add.append(metadata)
+
+    if self._vector_store is None:
+      return
+
+    try:
+      if all_delete_ids:
+        self._vector_store.delete(list(all_delete_ids))
+      
+      # 批量分块插入 Chroma，避免单次过大
+      batch_size = 500
+      for i in range(0, len(ids_to_add), batch_size):
+        self._vector_store.add_batch(
+          doc_ids=ids_to_add[i:i + batch_size],
+          contents=docs_to_add[i:i + batch_size],
+          metadatas=metadatas_to_add[i:i + batch_size],
+        )
+    except Exception as exc:
+      logger.warning("批量写入向量索引失败: %s", exc)
+
   def upsert_pending(self, pending: PendingJargon) -> None:
     """写入或更新待解明条目"""
     key = pending.phrase.strip()

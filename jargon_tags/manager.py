@@ -338,8 +338,8 @@ class JargonTagsManager:
         logger.warning("加载短语文件失败 %s: %s", path, exc)
         continue
 
-      for entry in entries:
-        self._store.upsert_known(entry)
+      if entries:
+        self._store.upsert_known_batch(entries)
       return len(entries)
 
     return 0

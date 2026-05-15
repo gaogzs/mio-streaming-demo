@@ -117,6 +117,7 @@ def _import_json_file(manager: JargonTagsManager, source_file: Path) -> tuple[in
 
   for item in items:
     if not isinstance(item, dict):
+      print(f"跳过非对象条目：{item}")
       skipped_count += 1
       continue
 
@@ -156,7 +157,8 @@ def _import_json_file(manager: JargonTagsManager, source_file: Path) -> tuple[in
       manager.upsert_tag(entry)
       tag_count += 1
       continue
-
+    
+    print(f"跳过无法识别的条目：{item}")
     skipped_count += 1
 
   return jargon_count, tag_count, skipped_count
